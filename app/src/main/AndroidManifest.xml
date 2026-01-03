@@ -107,7 +107,7 @@
             android:theme="@style/AppTheme.NoActionBar" />
 
         <activity
-            android:name="com.zcshou.gogogo.SettingsActivity"
+            android:name="com.kail.location.SettingsActivity"
             android:label="@string/app_settings"
             android:exported="false" />
 
