@@ -14,6 +14,8 @@ import android.view.View
 import android.view.WindowManager
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.*
+import androidx.savedstate.*
 import androidx.preference.PreferenceManager
 import com.baidu.mapapi.map.*
 import com.baidu.mapapi.model.LatLng
@@ -70,12 +72,47 @@ class JoyStick @JvmOverloads constructor(
     private var mMarkMapLngLat: LatLng? = null
     private lateinit var mSuggestionSearch: SuggestionSearch
 
+    // LifecycleOwner for Compose in WindowManager
+    private val mLifecycleOwner = MyLifecycleOwner()
+
     companion object {
         private const val DivGo = 1000L    /* 移动的时间间隔，单位 ms */
         private const val WINDOW_TYPE_JOYSTICK = 0
         private const val WINDOW_TYPE_MAP = 1
         private const val WINDOW_TYPE_HISTORY = 2
+        private class MyLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
+        private val lifecycleRegistry: LifecycleRegistry = LifecycleRegistry(this)
+        private val savedStateRegistryController: SavedStateRegistryController = SavedStateRegistryController.create(this)
+        private val mViewModelStore: ViewModelStore = ViewModelStore()
+
+        override val lifecycle: Lifecycle
+            get() = lifecycleRegistry
+
+        override val savedStateRegistry: SavedStateRegistry
+            get() = savedStateRegistryController.savedStateRegistry
+
+        override val viewModelStore: ViewModelStore
+            get() = mViewModelStore
+
+        fun onCreate() {
+            savedStateRegistryController.performRestore(null)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        }
+
+        fun onResume() {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        }
+
+        fun onPause() {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        }
+
+        fun onDestroy() {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+            mViewModelStore.clear()
+        }
     }
+}
 
     init {
         initWindowManager()
@@ -88,6 +125,10 @@ class JoyStick @JvmOverloads constructor(
                 XLog.e("JoyStick: Error initializing MapView", e)
             }
             initHistoryView()
+            
+            // Start Lifecycle
+            mLifecycleOwner.onCreate()
+            mLifecycleOwner.onResume()
         }
     }
 
@@ -159,6 +200,8 @@ class JoyStick @JvmOverloads constructor(
 
     fun destroy() {
         try {
+            mLifecycleOwner.onDestroy()
+
             if (this::mTimer.isInitialized) {
                 mTimer.cancel()
             }
@@ -236,6 +279,11 @@ class JoyStick @JvmOverloads constructor(
         
         // Initialize ComposeView
         mJoystickLayout = ComposeView(mContext).apply {
+            // Set LifecycleOwner, ViewModelStoreOwner, and SavedStateRegistryOwner
+            setViewTreeLifecycleOwner(mLifecycleOwner)
+            setViewTreeViewModelStoreOwner(mLifecycleOwner)
+            setViewTreeSavedStateRegistryOwner(mLifecycleOwner)
+            
             setContent {
                 JoyStickOverlay(
                     onMoveInfo = { auto, angle, r ->
@@ -302,7 +350,11 @@ class JoyStick @JvmOverloads constructor(
 
     @SuppressLint("InflateParams", "ClickableViewAccessibility")
     private fun initJoyStickMapView() {
-        mMapLayout = ComposeView(mContext)
+        mMapLayout = ComposeView(mContext).apply {
+             setViewTreeLifecycleOwner(mLifecycleOwner)
+             setViewTreeViewModelStoreOwner(mLifecycleOwner)
+             setViewTreeSavedStateRegistryOwner(mLifecycleOwner)
+        }
         mMapView = MapView(mContext)
         mMapView.showZoomControls(false)
         mBaiduMap = mMapView.map
@@ -449,7 +501,11 @@ class JoyStick @JvmOverloads constructor(
 
     @SuppressLint("InflateParams", "ClickableViewAccessibility")
     private fun initHistoryView() {
-        mHistoryLayout = ComposeView(mContext)
+        mHistoryLayout = ComposeView(mContext).apply {
+             setViewTreeLifecycleOwner(mLifecycleOwner)
+             setViewTreeViewModelStoreOwner(mLifecycleOwner)
+             setViewTreeSavedStateRegistryOwner(mLifecycleOwner)
+        }
         // Initial fetch
         fetchAllRecord()
         

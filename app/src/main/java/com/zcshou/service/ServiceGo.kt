@@ -1,6 +1,7 @@
 package com.zcshou.service
 
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -40,6 +41,9 @@ class ServiceGo : Service() {
     private var isStop = false
 
     private var mActReceiver: NoteActionReceiver? = null
+    // Notification object
+    private var mNotification: Notification? = null
+
     // 摇杆相关
     private lateinit var mJoyStick: JoyStick
 
@@ -69,40 +73,68 @@ class ServiceGo : Service() {
     override fun onCreate() {
         super.onCreate()
         XLog.i("ServiceGo: onCreate started")
+        
+        // 1. Init Notification & Foreground Service
+        try {
+            // Must call startForeground immediately
+            initNotification()
+        } catch (e: Throwable) {
+            XLog.e("ServiceGo: Error in initNotification", e)
+            // Continue execution, don't stopSelf yet, maybe we can survive or at least log more
+        }
+
+        // 2. Init Location Manager & Providers
         try {
             mLocManager = this.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-
+            
             removeTestProviderNetwork()
             addTestProviderNetwork()
 
             removeTestProviderGPS()
             addTestProviderGPS()
-
-            initGoLocation()
-
-            initNotification()
-            
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                    GoUtils.DisplayToast(applicationContext, "请授予悬浮窗权限")
-                    // Don't return, try to init anyway, or maybe open settings?
-                    // Service cannot easily open settings and wait.
-                    // But we can try to init JoyStick, it might fail inside.
-                }
-                initJoyStick()
-            } catch (e: Throwable) {
-                XLog.e("ServiceGo: Error initializing JoyStick", e)
-                GoUtils.DisplayToast(applicationContext, "悬浮窗初始化失败: ${e.message}")
-            }
-
-            XLog.i("ServiceGo: onCreate finished")
-        } catch (e: Exception) {
-            XLog.e("ServiceGo: Fatal error in onCreate", e)
-            stopSelf()
+        } catch (e: Throwable) {
+            XLog.e("ServiceGo: Error in LocationManager init", e)
         }
+
+        // 3. Init Location Handler
+        try {
+            initGoLocation()
+        } catch (e: Throwable) {
+            XLog.e("ServiceGo: Error in initGoLocation", e)
+        }
+            
+        // 4. Init JoyStick
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                GoUtils.DisplayToast(applicationContext, "请授予悬浮窗权限")
+            }
+            initJoyStick()
+        } catch (e: Throwable) {
+            XLog.e("ServiceGo: Error initializing JoyStick", e)
+            GoUtils.DisplayToast(applicationContext, "悬浮窗初始化失败: ${e.message}")
+        }
+
+        XLog.i("ServiceGo: onCreate finished")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Ensure startForeground is called to prevent crash (ForegroundServiceDidNotStartInTimeException)
+        // even if onCreate was skipped (service already running)
+        if (mNotification != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(SERVICE_GO_NOTE_ID, mNotification!!, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            } else {
+                startForeground(SERVICE_GO_NOTE_ID, mNotification!!)
+            }
+        } else {
+            // If notification is missing, try to init it again
+            try {
+                initNotification()
+            } catch (e: Exception) {
+                XLog.e("ServiceGo: Error in onStartCommand initNotification", e)
+            }
+        }
+
         if (intent != null) {
             mCurLng = intent.getDoubleExtra(MainActivity.LNG_MSG_ID, DEFAULT_LNG)
             mCurLat = intent.getDoubleExtra(MainActivity.LAT_MSG_ID, DEFAULT_LAT)
@@ -147,6 +179,7 @@ class ServiceGo : Service() {
             removeTestProviderGPS()
 
             mActReceiver?.let { unregisterReceiver(it) }
+            mActReceiver = null
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -163,20 +196,22 @@ class ServiceGo : Service() {
     }
 
     private fun initNotification() {
-        mActReceiver = NoteActionReceiver()
-        val filter = IntentFilter()
-        filter.addAction(SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW)
-        filter.addAction(SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE)
-        registerReceiver(mActReceiver, filter)
+        if (mActReceiver == null) {
+            mActReceiver = NoteActionReceiver()
+            val filter = IntentFilter()
+            filter.addAction(SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW)
+            filter.addAction(SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE)
+            registerReceiver(mActReceiver, filter)
+        }
 
         val mChannel = NotificationChannel(
             SERVICE_GO_NOTE_CHANNEL_ID,
             SERVICE_GO_NOTE_CHANNEL_NAME,
             NotificationManager.IMPORTANCE_DEFAULT
         )
-        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-
-        notificationManager.createNotificationChannel(mChannel)
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as? NotificationManager
+        
+        notificationManager?.createNotificationChannel(mChannel)
 
         //准备intent
         val clickIntent = Intent(this, MainActivity::class.java)
@@ -209,6 +244,8 @@ class ServiceGo : Service() {
             )
             .setSmallIcon(R.mipmap.ic_launcher)
             .build()
+        
+        mNotification = notification
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(SERVICE_GO_NOTE_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
