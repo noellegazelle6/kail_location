@@ -50,7 +50,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
-        android:name="com.kail.location.GoApplication"
+        android:name="com.kail.location.utils.GoApplication"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:launchMode="singleInstance"
@@ -73,7 +73,7 @@
         <service
             android:exported="false"
             android:foregroundServiceType="location"
-            android:name="com.kail.service.ServiceGo" />
+            android:name="com.kail.location.service.ServiceGo" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -90,7 +90,7 @@
             android:value="S3NTghoWR2QHKkvoZjZgcB5dysMH6rj7" />
 
         <activity
-            android:name="com.kail.location.WelcomeActivity"
+            android:name="com.kail.location.views.welcome.WelcomeActivity"
             android:exported="true"
             android:theme="@style/AppTheme.NoActionBar"
             >
@@ -101,20 +101,26 @@
         </activity>
 
         <activity
-            android:name="com.kail.location.MainActivity"
+            android:name="com.kail.location.views.main.MainActivity"
             android:launchMode="singleInstance"
             android:exported="false"
             android:theme="@style/AppTheme.NoActionBar" />
 
         <activity
-            android:name="com.kail.location.SettingsActivity"
+            android:name="com.kail.location.views.settings.SettingsActivity"
             android:label="@string/app_settings"
             android:exported="false" />
 
         <activity
-            android:name="com.kail.location.HistoryActivity"
+            android:name="com.kail.location.views.history.HistoryActivity"
             android:label="@string/app_history"
             android:exported="false" />
+
+        <activity
+            android:name="com.kail.location.views.routesimulation.RouteSimulationActivity"
+            android:label="@string/nav_menu_route_simulation"
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
     </application>
 

@@ -8,6 +8,10 @@
             android:id="@+id/nav_history"
             android:icon="@drawable/ic_menu_history"
             android:title="@string/nav_menu_history" />
+        <item
+            android:id="@+id/nav_route_simulation"
+            android:icon="@drawable/ic_move"
+            android:title="@string/nav_menu_route_simulation" />
     </group>
     
     <group>
