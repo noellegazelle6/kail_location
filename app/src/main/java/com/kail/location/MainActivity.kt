@@ -35,7 +35,7 @@ import com.baidu.mapapi.search.geocode.*
 import com.elvishew.xlog.XLog
 import com.kail.database.DataBaseHistoryLocation
 import com.kail.location.ui.MainScreen
-import com.kail.location.ui.theme.GoGoGoTheme
+import com.kail.location.ui.theme.locationTheme
 import com.kail.service.ServiceGo
 import com.kail.utils.GoUtils
 import com.kail.utils.MapUtils
@@ -199,7 +199,7 @@ class MainActivity : BaseActivity(), SensorEventListener {
         }
 
         setContent {
-            GoGoGoTheme {
+            locationTheme {
                 val isMocking by viewModel.isMocking.collectAsState()
                 val selectedPoi by viewModel.selectedPoi.collectAsState()
                 val updateInfo by viewModel.updateInfo.collectAsState()

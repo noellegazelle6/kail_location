@@ -14,7 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.preference.PreferenceManager
 import com.kail.location.ui.AgreementDialog
 import com.kail.location.ui.WelcomeScreen
-import com.kail.location.ui.theme.GoGoGoTheme
+import com.kail.location.ui.theme.locationTheme
 import com.kail.utils.GoUtils
 import java.util.ArrayList
 
@@ -42,7 +42,7 @@ class WelcomeActivity : AppCompatActivity() {
         mAgreement = preferences.getBoolean(KEY_ACCEPT_AGREEMENT, false)
 
         setContent {
-            GoGoGoTheme {
+            locationTheme {
                 var isChecked by remember { mutableStateOf(mPrivacy && mAgreement) }
                 var showAgreementDialog by remember { mutableStateOf(false) }
                 var showPrivacyDialog by remember { mutableStateOf(false) }

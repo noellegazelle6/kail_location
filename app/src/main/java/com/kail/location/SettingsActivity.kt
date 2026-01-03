@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kail.location.ui.SettingsScreen
-import com.kail.location.ui.theme.GoGoGoTheme
+import com.kail.location.ui.theme.locationTheme
 
 class SettingsActivity : BaseActivity() {
 
@@ -19,7 +19,7 @@ class SettingsActivity : BaseActivity() {
         window.statusBarColor = resources.getColor(R.color.colorPrimary, this.theme)
 
         setContent {
-            GoGoGoTheme {
+            locationTheme {
                 val viewModel: SettingsViewModel = viewModel()
                 SettingsScreen(
                     viewModel = viewModel,

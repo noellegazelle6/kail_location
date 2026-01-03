@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kail.location.ui.HistoryScreen
-import com.kail.location.ui.theme.GoGoGoTheme
+import com.kail.location.ui.theme.locationTheme
 import com.kail.utils.GoUtils
 
 class HistoryActivity : BaseActivity() {
@@ -28,7 +28,7 @@ class HistoryActivity : BaseActivity() {
         window.statusBarColor = resources.getColor(R.color.colorPrimary, this.theme)
 
         setContent {
-            GoGoGoTheme {
+            locationTheme {
                 val viewModel: HistoryViewModel = viewModel()
                 HistoryScreen(
                     viewModel = viewModel,
