@@ -6,6 +6,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import com.kail.location.models.UpdateInfo
 
+/**
+ * Composable function to display an update dialog.
+ *
+ * @param info The update information to display.
+ * @param onDismiss Callback when the dialog is dismissed.
+ * @param onConfirm Callback when the confirm button (Download) is clicked.
+ */
 @Composable
 fun UpdateDialog(
     info: UpdateInfo,

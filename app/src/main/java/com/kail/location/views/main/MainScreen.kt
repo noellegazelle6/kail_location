@@ -35,6 +35,34 @@ import androidx.compose.ui.viewinterop.AndroidView
 import android.widget.ImageView
 
 
+/**
+ * 主屏幕 Composable
+ * 整合了地图视图、抽屉导航、浮动按钮、缩放控件以及 POI 信息卡片。
+ *
+ * @param mapView 百度地图 View 实例
+ * @param isMocking 是否正在模拟位置
+ * @param onToggleMock 切换模拟状态的回调
+ * @param onZoomIn 放大地图回调
+ * @param onZoomOut 缩小地图回调
+ * @param onLocate 定位到当前位置回调
+ * @param onLocationInputConfirm 输入经纬度确认回调
+ * @param onMapTypeChange 切换地图类型回调
+ * @param onNavigate 导航菜单点击回调
+ * @param appVersion 应用版本号
+ * @param selectedPoi 当前选中的 POI 信息
+ * @param onPoiClose 关闭 POI 卡片回调
+ * @param onPoiSave 保存 POI 回调
+ * @param onPoiCopy 复制 POI 信息回调
+ * @param onPoiShare 分享 POI 信息回调
+ * @param onPoiFly "飞行"（模拟位置）到 POI 回调
+ * @param updateInfo 更新信息（若有）
+ * @param onUpdateDismiss 关闭更新对话框回调
+ * @param onUpdateConfirm 确认更新（下载）回调
+ * @param searchResults 搜索结果列表
+ * @param onSearch 发起搜索回调
+ * @param onClearSearchResults 清除搜索结果回调
+ * @param onSelectSearchResult 选中搜索结果回调
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -291,6 +319,14 @@ fun MainScreen(
     }
 }
 
+/**
+ * 更新提示对话框
+ * 显示新版本信息并提供下载选项。
+ *
+ * @param info 更新信息对象
+ * @param onDismiss 取消/关闭回调
+ * @param onConfirm 确认下载回调
+ */
 @Composable
 fun UpdateDialog(
     info: UpdateInfo,
@@ -316,6 +352,17 @@ fun UpdateDialog(
     )
 }
 
+/**
+ * POI 信息展示卡片
+ * 显示选中地点的经纬度、地址，并提供操作按钮（飞行、保存、复制、分享）。
+ *
+ * @param poi POI 信息对象
+ * @param onClose 关闭卡片回调
+ * @param onSave 保存回调
+ * @param onCopy 复制回调
+ * @param onShare 分享回调
+ * @param onFly 飞行（模拟位置）回调
+ */
 @Composable
 fun PoiInfoCard(
     poi: PoiInfo,
@@ -425,6 +472,13 @@ fun MapControlButton(iconRes: Int, onClick: () -> Unit) {
     }
 }
 
+/**
+ * 经纬度输入对话框
+ * 允许用户手动输入经纬度并选择坐标系（百度/GPS）。
+ *
+ * @param onDismiss 取消/关闭回调
+ * @param onConfirm 确认回调，参数为：(纬度, 经度, 是否为百度坐标)
+ */
 @Composable
 fun LocationInputDialog(
     onDismiss: () -> Unit,

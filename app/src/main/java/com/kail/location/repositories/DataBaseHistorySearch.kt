@@ -6,12 +6,29 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.elvishew.xlog.XLog
 
+/**
+ * 历史搜索数据的 SQLite 辅助类。
+ *
+ * @param context 应用上下文。
+ */
 class DataBaseHistorySearch(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
 
+    /**
+     * 首次创建数据库时回调。
+     *
+     * @param sqLiteDatabase 数据库实例。
+     */
     override fun onCreate(sqLiteDatabase: SQLiteDatabase) {
         sqLiteDatabase.execSQL(CREATE_TABLE)
     }
 
+    /**
+     * 数据库需要升级时回调。
+     *
+     * @param sqLiteDatabase 数据库实例。
+     * @param oldVersion 旧版本号。
+     * @param newVersion 新版本号。
+     */
     override fun onUpgrade(sqLiteDatabase: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         val sql = "DROP TABLE IF EXISTS $TABLE_NAME"
         sqLiteDatabase.execSQL(sql)
@@ -42,6 +59,13 @@ class DataBaseHistorySearch(context: Context) : SQLiteOpenHelper(context, DB_NAM
                 "DB_COLUMN_LONGITUDE_WGS84 TEXT, DB_COLUMN_LATITUDE_WGS84 TEXT, " +
                 "DB_COLUMN_LONGITUDE_CUSTOM TEXT, DB_COLUMN_LATITUDE_CUSTOM TEXT)"
 
+        /**
+         * 保存历史搜索记录。
+         * 在插入前，若存在相同关键字的记录则先删除。
+         *
+         * @param sqLiteDatabase 数据库实例。
+         * @param contentValues 要保存的键值对。
+         */
         @JvmStatic
         fun saveHistorySearch(sqLiteDatabase: SQLiteDatabase, contentValues: ContentValues) {
             try {
@@ -54,6 +78,12 @@ class DataBaseHistorySearch(context: Context) : SQLiteOpenHelper(context, DB_NAM
             }
         }
 
+        /**
+         * 新增历史搜索关键字。
+         *
+         * @param sqLiteDatabase 数据库实例。
+         * @param key 搜索关键字。
+         */
         @JvmStatic
         fun addHistorySearch(sqLiteDatabase: SQLiteDatabase?, key: String) {
             if (sqLiteDatabase == null) return

@@ -22,6 +22,12 @@ import java.util.Date
 import java.util.Locale
 
 object GoUtils {
+    /**
+     * 判断是否开启了开发者选项。
+     *
+     * @param context 上下文。
+     * @return 若已开启返回 true，否则返回 false。
+     */
     @JvmStatic
     fun isDeveloperOptionsEnabled(context: Context): Boolean {
         return Settings.Global.getInt(
@@ -31,7 +37,12 @@ object GoUtils {
         ) == 1
     }
 
-    // WIFI是否可用
+    /**
+     * WIFI 是否已连接且可用。
+     *
+     * @param context 上下文。
+     * @return 若可用返回 true，否则返回 false。
+     */
     @JvmStatic
     fun isWifiConnected(context: Context): Boolean {
         // 从 API 29 开始，NetworkInfo 被标记为过时，这里更换新方法
@@ -42,13 +53,24 @@ object GoUtils {
         return actNw != null && actNw.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
     }
 
+    /**
+     * WIFI 功能是否开启（不代表已连接热点）。
+     *
+     * @param context 上下文。
+     * @return 若开启返回 true，否则返回 false。
+     */
     @JvmStatic
     fun isWifiEnabled(context: Context): Boolean {
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         return wifiManager.isWifiEnabled
     }
 
-    // MOBILE网络是否可用
+    /**
+     * 移动网络是否已连接且可用。
+     *
+     * @param context 上下文。
+     * @return 若可用返回 true，否则返回 false。
+     */
     @JvmStatic
     fun isMobileConnected(context: Context): Boolean {
         // 从 API 29 开始，NetworkInfo 被标记为过时，这里更换新方法
@@ -59,7 +81,12 @@ object GoUtils {
         return actNw != null && actNw.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
     }
 
-    // 断是否有网络连接，但是如果该连接的网络无法上网，也会返回true
+    /**
+     * 是否存在网络连接（不保证可上网）。
+     *
+     * @param context 上下文。
+     * @return 若存在返回 true，否则返回 false。
+     */
     @JvmStatic
     fun isNetworkConnected(context: Context): Boolean {
         // 从 API 29 开始，NetworkInfo 被标记为过时，这里更换新方法
@@ -74,13 +101,23 @@ object GoUtils {
         ))
     }
 
-    // 网络是否可用
+    /**
+     * 网络是否可用（WIFI 或移动网络且网络已连接）。
+     *
+     * @param context 上下文。
+     * @return 若可用返回 true，否则返回 false。
+     */
     @JvmStatic
     fun isNetworkAvailable(context: Context): Boolean {
         return (isWifiConnected(context) || isMobileConnected(context)) && isNetworkConnected(context)
     }
 
-    // 判断GPS是否打开
+    /**
+     * 判断 GPS 是否已开启。
+     *
+     * @param context 上下文。
+     * @return 若已开启返回 true，否则返回 false。
+     */
     @JvmStatic
     fun isGpsOpened(context: Context): Boolean {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -89,6 +126,12 @@ object GoUtils {
 
     // 判断是否已在开发者选项中开启模拟位置权限（注意下面临时添加 @SuppressLint("wrongconstant") 以处理 addTestProvider 参数值的 lint 错误）
     @SuppressLint("WrongConstant")
+    /**
+     * 是否允许模拟位置（开发者选项中选择了模拟位置信息应用）。
+     *
+     * @param context 上下文。
+     * @return 若允许返回 true，否则返回 false。
+     */
     @JvmStatic
     fun isAllowMockLocation(context: Context): Boolean {
         var canMockPosition = false
@@ -137,6 +180,13 @@ object GoUtils {
         return canMockPosition
     }
 
+    /**
+     * 检查某个服务是否正在运行。
+     *
+     * @param context 上下文。
+     * @param serviceName 服务的完整类名。
+     * @return 若正在运行返回 true，否则返回 false。
+     */
     @JvmStatic
     fun isServiceRunning(context: Context, serviceName: String): Boolean {
         val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
@@ -149,9 +199,10 @@ object GoUtils {
     }
 
     /**
-     * [获取应用程序版本名称]
-     * @param context context
-     * @return 当前应用的版本名称
+     * 获取应用版本名（字符串）。
+     *
+     * @param context 上下文。
+     * @return 版本名字符串。
      */
     @JvmStatic
     fun getVersionName(context: Context): String {
@@ -167,6 +218,12 @@ object GoUtils {
         return ""
     }
 
+    /**
+     * 获取应用版本号（整数）。
+     *
+     * @param context 上下文。
+     * @return 版本号。
+     */
     @JvmStatic
     fun getVersionCode(context: Context): Int {
         try {
@@ -187,9 +244,10 @@ object GoUtils {
     }
 
     /**
-     * 获取App的名称
-     * @param context 上下文
-     * @return 名称
+     * 获取应用名称。
+     *
+     * @param context 上下文。
+     * @return 应用名称字符串。
      */
     @JvmStatic
     fun getAppName(context: Context): String? {
@@ -207,6 +265,12 @@ object GoUtils {
         return null
     }
 
+    /**
+     * 将秒级时间戳字符串转换为格式化日期字符串。
+     *
+     * @param seconds 秒级时间戳字符串。
+     * @return 格式化日期（yyyy-MM-dd HH:mm:ss）。
+     */
     @JvmStatic
     fun timeStamp2Date(seconds: String?): String {
         if (seconds == null || seconds.isEmpty() || seconds == "null") {
@@ -218,7 +282,11 @@ object GoUtils {
         return sdf.format(Date((seconds + "000").toLong()))
     }
 
-    // 提醒开启位置模拟的弹框
+    /**
+     * 显示启用模拟位置的提示对话框。
+     *
+     * @param context 上下文。
+     */
     @JvmStatic
     fun showEnableMockLocationDialog(context: Context) {
         AlertDialog.Builder(context)
@@ -238,7 +306,11 @@ object GoUtils {
             .show()
     }
 
-    // 提醒开启悬浮窗的弹框
+    /**
+     * 显示启用悬浮窗权限的提示对话框。
+     *
+     * @param context 上下文。
+     */
     @JvmStatic
     fun showEnableFloatWindowDialog(context: Context) {
         AlertDialog.Builder(context)
@@ -261,7 +333,11 @@ object GoUtils {
             .show()
     }
 
-    // 显示开启GPS的提示
+    /**
+     * 显示启用定位服务（GPS）的提示对话框。
+     *
+     * @param context 上下文。
+     */
     @JvmStatic
     fun showEnableGpsDialog(context: Context) {
         AlertDialog.Builder(context)
@@ -280,7 +356,11 @@ object GoUtils {
             .show()
     }
 
-    // 提醒开启位置模拟的弹框
+    /**
+     * 显示关闭 WIFI 的警告提示对话框。
+     *
+     * @param context 上下文。
+     */
     @JvmStatic
     fun showDisableWifiDialog(context: Context) {
         AlertDialog.Builder(context)
@@ -299,6 +379,12 @@ object GoUtils {
             .show()
     }
 
+    /**
+     * 显示置顶 Toast 提示。
+     *
+     * @param context 上下文。
+     * @param str 提示文本。
+     */
     @JvmStatic
     fun DisplayToast(context: Context, str: String) {
         val toast = Toast.makeText(context, str, Toast.LENGTH_LONG)
@@ -306,7 +392,9 @@ object GoUtils {
         toast.show()
     }
 
-    /* 计数器类 */
+    /**
+     * 倒计时工具类。
+     */
     class TimeCount(millisInFuture: Long, countDownInterval: Long) :
         CountDownTimer(millisInFuture, countDownInterval) {
         private var mListener: TimeCountListener? = null

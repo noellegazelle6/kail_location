@@ -13,6 +13,10 @@ import com.elvishew.xlog.printer.file.backup.NeverBackupStrategy
 import com.elvishew.xlog.printer.file.clean.FileLastModifiedCleanStrategy
 import com.elvishew.xlog.printer.file.naming.ChangelessFileNameGenerator
 
+/**
+ * 自定义 Application，负责应用级初始化。
+ * 包含崩溃日志写入、XLog 初始化以及百度地图/定位 SDK 的设置。
+ */
 class GoApplication : Application() {
     companion object {
         const val APP_NAME = "KailLocation"
@@ -20,6 +24,11 @@ class GoApplication : Application() {
         private const val MAX_TIME = (1000 * 60 * 60 * 24 * 3).toLong() // 3 days
     }
 
+    /**
+     * 将崩溃信息写入文件。
+     *
+     * @param ex 抛出的异常对象。
+     */
     private fun writeCrashToFile(ex: Throwable) {
         try {
             val logPath = getExternalFilesDir("Logs") ?: return
@@ -35,6 +44,10 @@ class GoApplication : Application() {
 
     private var mDefaultHandler: Thread.UncaughtExceptionHandler? = null
 
+    /**
+     * 应用启动回调。
+     * 初始化崩溃处理、XLog 以及百度地图/定位 SDK。
+     */
     override fun onCreate() {
         super.onCreate()
 
@@ -64,7 +77,7 @@ class GoApplication : Application() {
     }
 
     /**
-     * Initialize XLog.
+     * 初始化 XLog：配置日志级别、标签与文件输出。
      */
     private fun initXlog() {
         val config = LogConfiguration.Builder()

@@ -27,6 +27,16 @@ private val LightColorScheme = lightColorScheme(
     tertiary = Pink40
 )
 
+/**
+ * 应用全局主题组件
+ * 根据系统设置（深色/浅色模式）提供 Material Design 3 配色方案。
+ * 并在 Android 12+ 上支持动态取色（Dynamic Color）。
+ * 同时负责设置状态栏颜色与外观。
+ *
+ * @param darkTheme 是否使用深色主题，默认跟随系统
+ * @param dynamicColor 是否启用动态取色（仅 Android 12+），默认为 true
+ * @param content 主题内包含的 UI 内容
+ */
 @Composable
 fun locationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),

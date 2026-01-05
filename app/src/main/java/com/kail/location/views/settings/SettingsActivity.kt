@@ -9,8 +9,19 @@ import com.kail.location.views.theme.locationTheme
 import com.kail.location.R
 import com.kail.location.viewmodels.SettingsViewModel
 
+/**
+ * 设置页面活动
+ * 负责承载应用的设置屏幕，继承自 BaseActivity。
+ * 此页面提供了对应用各项参数的配置入口，如摇杆类型、速度设置、位置偏移等。
+ */
 class SettingsActivity : BaseActivity() {
 
+    /**
+     * 活动创建回调
+     * 初始化设置界面的 ViewModel 与 Compose 内容。
+     *
+     * @param savedInstanceState Activity 的状态保存对象
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 

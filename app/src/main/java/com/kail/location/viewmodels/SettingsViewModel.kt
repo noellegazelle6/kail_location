@@ -9,6 +9,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/**
+ * 设置页面的 ViewModel。
+ * 负责读取与写入用户偏好设置。
+ *
+ * @property application 应用上下文。
+ */
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
 
@@ -27,35 +33,46 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     private val _joystickType = MutableStateFlow(prefs.getString(KEY_JOYSTICK_TYPE, "0") ?: "0")
+    /** 摇杆类型偏好的状态流。 */
     val joystickType: StateFlow<String> = _joystickType.asStateFlow()
 
     private val _walkSpeed = MutableStateFlow(prefs.getString(KEY_WALK_SPEED, "1.2") ?: "1.2")
+    /** 步行速度偏好的状态流。 */
     val walkSpeed: StateFlow<String> = _walkSpeed.asStateFlow()
 
     private val _runSpeed = MutableStateFlow(prefs.getString(KEY_RUN_SPEED, "3.6") ?: "3.6")
+    /** 跑步速度偏好的状态流。 */
     val runSpeed: StateFlow<String> = _runSpeed.asStateFlow()
 
     private val _bikeSpeed = MutableStateFlow(prefs.getString(KEY_BIKE_SPEED, "10.0") ?: "10.0")
+    /** 骑行速度偏好的状态流。 */
     val bikeSpeed: StateFlow<String> = _bikeSpeed.asStateFlow()
 
     private val _altitude = MutableStateFlow(prefs.getString(KEY_ALTITUDE, "55.0") ?: "55.0")
+    /** 海拔高度偏好的状态流。 */
     val altitude: StateFlow<String> = _altitude.asStateFlow()
 
     private val _latOffset = MutableStateFlow(prefs.getString(KEY_LAT_OFFSET, "10.0") ?: "10.0")
+    /** 纬度最大偏移量偏好的状态流。 */
     val latOffset: StateFlow<String> = _latOffset.asStateFlow()
 
     private val _lonOffset = MutableStateFlow(prefs.getString(KEY_LON_OFFSET, "10.0") ?: "10.0")
+    /** 经度最大偏移量偏好的状态流。 */
     val lonOffset: StateFlow<String> = _lonOffset.asStateFlow()
     
     private val _randomOffset = MutableStateFlow(prefs.getBoolean(KEY_RANDOM_OFFSET, false))
+    /** 随机偏移开关偏好的状态流。 */
     val randomOffset: StateFlow<Boolean> = _randomOffset.asStateFlow()
 
     private val _logOff = MutableStateFlow(prefs.getBoolean(KEY_LOG_OFF, false))
+    /** 关闭日志开关偏好的状态流。 */
     val logOff: StateFlow<Boolean> = _logOff.asStateFlow()
 
     private val _historyExpiration = MutableStateFlow(prefs.getString(KEY_HISTORY_EXPIRATION, "7.0") ?: "7.0")
+    /** 历史记录保留天数偏好的状态流。 */
     val historyExpiration: StateFlow<String> = _historyExpiration.asStateFlow()
 
+    /** 应用版本号（字符串）。 */
     val appVersion: String = GoUtils.getVersionName(application)
 
     private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
@@ -77,10 +94,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         prefs.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
 
+    /**
+     * 更新字符串类型的偏好设置。
+     *
+     * @param key 偏好键。
+     * @param value 新的字符串值。
+     */
     fun updateStringPreference(key: String, value: String) {
         prefs.edit().putString(key, value).apply()
     }
 
+    /**
+     * 更新布尔类型的偏好设置。
+     *
+     * @param key 偏好键。
+     * @param value 新的布尔值。
+     */
     fun updateBooleanPreference(key: String, value: Boolean) {
         prefs.edit().putBoolean(key, value).apply()
     }

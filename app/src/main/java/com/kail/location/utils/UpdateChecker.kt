@@ -7,9 +7,18 @@ import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
 
+/**
+ * 从 GitHub 检查应用更新的工具。
+ */
 object UpdateChecker {
     private const val GITHUB_API_URL = "https://api.github.com/repos/noellegazelle6/kail_location/releases/latest"
 
+    /**
+     * 检查 GitHub Releases 是否有新版本。
+     *
+     * @param context 用于获取当前版本号的上下文。
+     * @param callback 若存在更新返回 [UpdateInfo]，否则返回错误信息或空。
+     */
     fun check(context: Context, callback: (UpdateInfo?, String?) -> Unit) {
         val client = OkHttpClient()
         val request = Request.Builder()

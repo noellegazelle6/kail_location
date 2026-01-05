@@ -56,6 +56,11 @@ import java.io.IOException
 import java.util.*
 import kotlin.math.abs
 
+/**
+ * 主界面 Activity。
+ * 负责展示百度地图、处理用户交互、管理定位服务以及传感器数据。
+ * 集成了 Compose UI (MainScreen) 用于显示现代化的用户界面。
+ */
 class MainActivity : BaseActivity(), SensorEventListener {
 
     private val viewModel: MainViewModel by viewModels()
@@ -150,6 +155,10 @@ class MainActivity : BaseActivity(), SensorEventListener {
         )
     }
 
+    /**
+     * Activity 创建回调。
+     * 初始化 ViewModel、传感器、地图视图、服务连接以及 Compose 内容。
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // setContentView(R.layout.activity_main) // Removed for Compose
@@ -332,16 +341,28 @@ class MainActivity : BaseActivity(), SensorEventListener {
         }
     }
 
+    /**
+     * Activity 恢复回调。
+     * 恢复地图视图。
+     */
     override fun onResume() {
         super.onResume()
         mMapView?.onResume()
     }
 
+    /**
+     * Activity 暂停回调。
+     * 暂停地图视图。
+     */
     override fun onPause() {
         super.onPause()
         mMapView?.onPause()
     }
 
+    /**
+     * Activity 销毁回调。
+     * 销毁地图视图、停止定位客户端、解绑服务以及注销广播接收器。
+     */
     override fun onDestroy() {
         super.onDestroy()
         mMapView?.onDestroy()
@@ -383,6 +404,12 @@ class MainActivity : BaseActivity(), SensorEventListener {
     */
 
     /*============================== 传感器 Listener ==============================*/
+    /**
+     * 传感器数据变化回调。
+     * 处理加速度和磁场传感器数据，计算方向并更新地图上的定位图标方向。
+     *
+     * @param event 传感器事件
+     */
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
             System.arraycopy(event.values, 0, mAccValues, 0, 3)
@@ -413,9 +440,20 @@ class MainActivity : BaseActivity(), SensorEventListener {
         mBaiduMap?.setMyLocationData(locData)
     }
 
+    /**
+     * 传感器精度变化回调。
+     * 目前未做处理。
+     *
+     * @param sensor 传感器
+     * @param accuracy 精度值
+     */
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     /*============================== UI初始化 ==============================*/
+    /**
+     * 初始化地图设置。
+     * 配置定位图层、地图状态监听器、点击监听器以及 Marker 拖拽监听器。
+     */
     private fun initMap() {
         // mMapView and mBaiduMap are initialized in onCreate
 
@@ -535,6 +573,10 @@ class MainActivity : BaseActivity(), SensorEventListener {
         mGeoCoder?.setOnGetGeoCodeResultListener(listener)
     }
 
+    /**
+     * 初始化定位客户端。
+     * 配置定位参数（GPS、坐标系等）并启动定位。
+     */
     private fun initMapLocation() {
         mBaiduMap?.isMyLocationEnabled = true
         mLocClient = LocationClient(applicationContext)
@@ -581,6 +623,10 @@ class MainActivity : BaseActivity(), SensorEventListener {
         mLocClient?.start()
     }
 
+    /**
+     * 切换模拟位置服务的开启/关闭状态。
+     * 检查权限与 GPS 状态，启动或停止 ServiceGo 前台服务。
+     */
     private fun doGoLocation() {
         XLog.i("doGoLocation called")
         if (!GoUtils.isAllowMockLocation(this)) {
@@ -633,6 +679,9 @@ class MainActivity : BaseActivity(), SensorEventListener {
     }
 
     /*============================== SQLite 相关 ==============================*/
+    /**
+     * 初始化历史位置数据库。
+     */
     private fun initLocationDataBase() {
         try {
             val hisLocDBHelper = DataBaseHistoryLocation(applicationContext)
@@ -735,6 +784,10 @@ class MainActivity : BaseActivity(), SensorEventListener {
         }
     }
 
+    /**
+     * 安装 APK 文件。
+     * 配置 FileProvider 权限并启动安装 Intent。
+     */
     private fun installApk() {
         val file = File(
             android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),

@@ -21,17 +21,27 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.Locale
 
-
-
+/**
+ * 历史记录管理的 ViewModel。
+ * 负责加载、搜索、删除与更新历史定位记录。
+ *
+ * @property application 应用上下文。
+ */
 class HistoryViewModel(application: Application) : AndroidViewModel(application) {
     private val dbHelper = DataBaseHistoryLocation(application)
     private var db: SQLiteDatabase? = null
     private val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
 
     private val _historyRecords = MutableStateFlow<List<HistoryRecord>>(emptyList())
+    /**
+     * 用于承载界面展示的历史记录列表。
+     */
     val historyRecords: StateFlow<List<HistoryRecord>> = _historyRecords.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
+    /**
+     * 当前的搜索关键字。
+     */
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     private var allRecords: List<HistoryRecord> = emptyList()
@@ -46,11 +56,21 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * 设置搜索关键字并过滤历史记录。
+     *
+     * @param query 搜索关键字。
+     */
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
         filterRecords(query)
     }
 
+    /**
+     * 根据搜索关键字过滤历史记录。
+     *
+     * @param query 搜索关键字。
+     */
     private fun filterRecords(query: String) {
         if (query.isEmpty()) {
             _historyRecords.value = allRecords
@@ -63,6 +83,10 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * 从数据库加载所有历史记录并更新状态。
+     * 运行在 IO 线程。
+     */
     fun loadRecords() {
         viewModelScope.launch(Dispatchers.IO) {
             allRecords = fetchAllRecord()
@@ -70,6 +94,11 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * 从 SQLite 数据库读取所有历史记录。
+     *
+     * @return 历史记录的列表。
+     */
     private fun fetchAllRecord(): List<HistoryRecord> {
         val list = mutableListOf<HistoryRecord>()
         val database = db ?: return list
@@ -119,6 +148,12 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         return list
     }
 
+    /**
+     * 按 ID 删除历史记录。
+     * 当 ID ≤ -1 时删除所有记录。
+     *
+     * @param id 要删除的记录 ID。
+     */
     fun deleteRecord(id: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -138,6 +173,12 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * 更新历史记录的名称。
+     *
+     * @param id 要更新的记录 ID。
+     * @param newName 新的名称。
+     */
     fun updateRecordName(id: Int, newName: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -149,6 +190,9 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /**
+     * 根据用户设置自动清理过期的历史记录。
+     */
     private fun recordArchive() {
         // Automatically delete old records based on settings
         var limits: Double
@@ -173,7 +217,12 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    // Returns (longitude, latitude) pair, applying offset if configured
+    /**
+     * 获取记录的最终坐标；若开启随机偏移则应用偏移。
+     *
+     * @param record 历史记录。
+     * @return (经度, 纬度) 字符串对。
+     */
     fun getFinalCoordinates(record: HistoryRecord): Pair<String, String> {
         var lon = record.longitudeBd09
         var lat = record.latitudeBd09

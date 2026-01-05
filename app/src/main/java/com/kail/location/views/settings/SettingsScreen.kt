@@ -20,6 +20,13 @@ import androidx.compose.ui.unit.sp
 import com.kail.location.R
 import com.kail.location.viewmodels.SettingsViewModel
 
+/**
+ * 设置屏幕主界面
+ * 展示所有可配置的应用选项，按类别分组显示。
+ *
+ * @param viewModel 设置界面的 ViewModel，用于读取和更新偏好设置
+ * @param onBackClick 返回按钮点击回调
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -158,6 +165,12 @@ fun SettingsScreen(
     }
 }
 
+/**
+ * 设置类别标题组件
+ * 用于区分不同类型的设置项。
+ *
+ * @param title 类别标题文本
+ */
 @Composable
 fun PreferenceCategory(title: String) {
     Text(
@@ -168,6 +181,15 @@ fun PreferenceCategory(title: String) {
     )
 }
 
+/**
+ * 开关类设置项组件
+ * 包含标题、可选摘要和右侧的 Switch 开关。
+ *
+ * @param title 设置项标题
+ * @param checked 当前开关状态
+ * @param onCheckedChange 开关状态变更回调
+ * @param summary 可选的摘要说明文本
+ */
 @Composable
 fun SwitchPreference(
     title: String,
@@ -188,6 +210,14 @@ fun SwitchPreference(
     )
 }
 
+/**
+ * 文本编辑类设置项组件
+ * 点击后弹出对话框供用户输入文本值。
+ *
+ * @param title 设置项标题
+ * @param value 当前值
+ * @param onValueChange 值变更回调
+ */
 @Composable
 fun EditTextPreference(
     title: String,
@@ -236,6 +266,16 @@ fun EditTextPreference(
     }
 }
 
+/**
+ * 列表选择类设置项组件
+ * 点击后弹出单选列表供用户选择。
+ *
+ * @param title 设置项标题
+ * @param currentValue 当前选中的值（内部值）
+ * @param entries 显示给用户的选项名称数组
+ * @param entryValues 对应的实际值数组
+ * @param onValueChange 值变更回调
+ */
 @Composable
 fun ListPreference(
     title: String,

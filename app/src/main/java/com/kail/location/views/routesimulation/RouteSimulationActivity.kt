@@ -22,6 +22,12 @@ import com.kail.location.viewmodels.RouteSimulationViewModel
 import com.kail.location.views.locationsimulation.LocationSimulationActivity
 import com.kail.location.views.settings.SettingsActivity
 
+/**
+ * 路线模拟页面活动
+ * 负责初始化百度地图与定位客户端，并在 Compose 中承载路线模拟与路线规划界面。
+ * - 管理当前设备定位展示与首次定位移动视角
+ * - 在不同界面间切换：路线列表与路线规划
+ */
 class RouteSimulationActivity : BaseActivity() {
     private val viewModel: RouteSimulationViewModel by viewModels()
     private var mMapView: MapView? = null
@@ -31,6 +37,12 @@ class RouteSimulationActivity : BaseActivity() {
     private var mCurrentLon by mutableStateOf(0.0)
     private var isFirstLoc = true
 
+    /**
+     * 活动创建回调
+     * 初始化地图视图、定位能力与 Compose 页面内容，并设置导航行为与版本信息展示。
+     *
+     * @param savedInstanceState Activity 的状态保存对象
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = resources.getColor(R.color.colorPrimary, this.theme)
@@ -121,16 +133,28 @@ class RouteSimulationActivity : BaseActivity() {
         }
     }
 
+    /**
+     * 活动恢复回调
+     * 恢复 MapView 生命周期，保证地图正常渲染与交互。
+     */
     override fun onResume() {
         super.onResume()
         mMapView?.onResume()
     }
 
+    /**
+     * 活动暂停回调
+     * 暂停 MapView 生命周期，减少资源消耗。
+     */
     override fun onPause() {
         super.onPause()
         mMapView?.onPause()
     }
 
+    /**
+     * 活动销毁回调
+     * 释放地图与定位相关资源，停止定位，避免内存泄漏。
+     */
     override fun onDestroy() {
         super.onDestroy()
         mMapView?.onDestroy()
@@ -139,10 +163,18 @@ class RouteSimulationActivity : BaseActivity() {
         mBaiduMap = null
     }
 
+    /**
+     * 页面类型
+     * LIST 为路线列表展示；PLAN 为路线规划操作。
+     */
     enum class Screen {
         LIST, PLAN
     }
 
+    /**
+     * 初始化地图定位能力
+     * 开启我的位置层，配置定位选项并启动定位，首个有效定位时移动地图视角到当前位置。
+     */
     private fun initMapLocation() {
         mBaiduMap?.isMyLocationEnabled = true
         // 建议使用 ApplicationContext 初始化 LocationClient，避免内存泄漏并确保 Context 稳定

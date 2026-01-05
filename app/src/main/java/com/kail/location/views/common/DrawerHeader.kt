@@ -16,6 +16,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.kail.location.R
 
+/**
+ * Composable function for the navigation drawer header.
+ * Displays app icon, name, version, and a tip message.
+ *
+ * @param version The app version string to display.
+ */
 @Composable
 fun DrawerHeader(version: String) {
     Column(

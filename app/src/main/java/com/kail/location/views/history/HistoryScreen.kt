@@ -25,6 +25,15 @@ import com.kail.location.models.HistoryRecord
 import com.kail.location.viewmodels.HistoryViewModel
 import com.kail.location.R
 
+/**
+ * 历史记录屏幕组合项。
+ * 显示历史记录列表，支持搜索和删除功能。
+ *
+ * @param viewModel 持有历史数据和逻辑的 ViewModel。
+ * @param onBackClick 返回按钮点击回调。
+ * @param onLocationSelect 历史记录选中回调。
+ *                         参数为经度、纬度和高度（字符串格式）。
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HistoryScreen(
@@ -195,6 +204,14 @@ fun HistoryScreen(
     }
 }
 
+/**
+ * Composable function to display a single history item.
+ *
+ * @param record The history record.
+ * @param onClick Callback when the item is clicked.
+ * @param onDeleteClick Callback when the delete option is selected.
+ * @param onEditClick Callback when the edit option is selected.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HistoryItem(

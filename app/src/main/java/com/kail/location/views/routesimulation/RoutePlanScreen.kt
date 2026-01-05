@@ -42,8 +42,24 @@ import com.baidu.mapapi.map.BitmapDescriptorFactory
 import com.baidu.mapapi.map.MarkerOptions
 import android.content.Context
 
+/**
+ * 标点阶段枚举
+ * Idle 空闲；Preview 预览起点；Active 正在拖拽添加途经点并绘制折线。
+ */
 private enum class MarkingPhase { Idle, Preview, Active }
 
+/**
+ * 路线规划界面
+ * 在百度地图上进行途经点标注与路线绘制，支持撤销、定位、地图类型切换与坐标输入。
+ *
+ * @param mapView 地图视图实例，用于承载地图渲染
+ * @param onBackClick 返回点击回调（当前界面内不直接使用）
+ * @param onConfirmClick 确认并返回回调，用于保存路线后返回列表
+ * @param onLocateClick 定位点击回调，请求设备当前位置
+ * @param currentLatLng 当前坐标（BD09），用于进入页面后居中与标记
+ * @param onNavigate 导航抽屉跳转回调
+ * @param appVersion 应用版本展示文本
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoutePlanScreen(
@@ -513,6 +529,15 @@ fun RoutePlanScreen(
     }
 }
 
+/**
+ * 将矢量资源转换为位图描述符
+ * 可选地对矢量资源进行着色，返回用于地图标记的 BitmapDescriptor。
+ *
+ * @param context 上下文
+ * @param vectorResId 矢量资源 ID
+ * @param tint 可选的着色值（Android 颜色整数），为空则保持原色
+ * @return 位图描述符，失败时返回 null
+ */
 fun bitmapDescriptorFromVector(context: Context, vectorResId: Int, tint: Int? = null): BitmapDescriptor? {
     val vectorDrawable = ContextCompat.getDrawable(context, vectorResId) ?: return null
     vectorDrawable.setBounds(0, 0, vectorDrawable.intrinsicWidth, vectorDrawable.intrinsicHeight)
@@ -525,6 +550,13 @@ fun bitmapDescriptorFromVector(context: Context, vectorResId: Int, tint: Int? = 
     return BitmapDescriptorFactory.fromBitmap(bitmap)
 }
 
+/**
+ * 地图控制按钮
+ * 圆形按钮样式，承载地图相关操作（如切换类型、缩放等）。
+ *
+ * @param iconRes 图标资源 ID
+ * @param onClick 点击回调
+ */
 @Composable
 fun MapControlButton(iconRes: Int, onClick: () -> Unit) {
     Surface(
@@ -545,6 +577,13 @@ fun MapControlButton(iconRes: Int, onClick: () -> Unit) {
     }
 }
 
+/**
+ * 保存规划路线点数据到偏好存储
+ * 将点序列按逗号拼接为字符串并写入 SharedPreferences。
+ *
+ * @param prefs 偏好存储实例
+ * @param points 路线点坐标序列（WGS84，经纬度交替）
+ */
 fun saveRoute(prefs: android.content.SharedPreferences, points: List<Double>) {
     val sb = StringBuilder()
     for (i in points.indices) {
@@ -554,6 +593,13 @@ fun saveRoute(prefs: android.content.SharedPreferences, points: List<Double>) {
     prefs.edit().putString("route_data", sb.toString()).apply()
 }
 
+/**
+ * 坐标输入对话框
+ * 支持输入纬度与经度，并选择是否为 BD09 坐标；确认后回传坐标值。
+ *
+ * @param onDismiss 关闭对话框回调
+ * @param onConfirm 确认并回传坐标的回调 参数为纬度、经度与是否 BD09
+ */
 @Composable
 fun LocationInputDialog(onDismiss: () -> Unit, onConfirm: (Double, Double, Boolean) -> Unit) {
     var latStr by remember { mutableStateOf("") }

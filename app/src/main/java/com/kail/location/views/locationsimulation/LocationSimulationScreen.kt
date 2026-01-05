@@ -33,6 +33,21 @@ import android.content.Intent
 import android.net.Uri
 import com.kail.location.views.common.UpdateDialog
 
+/**
+ * 位置模拟主界面组合项。
+ *
+ * 该界面提供了位置模拟的核心功能，包括：
+ * 1. 显示当前选定的模拟目标位置信息（名称、地址、经纬度）。
+ * 2. 提供开始/停止模拟的控制按钮。
+ * 3. 提供摇杆功能的开关控制。
+ * 4. 展示历史记录列表（当前为占位符状态）。
+ * 5. 集成侧边栏导航，支持跳转到其他功能模块（如路线模拟、设置等）。
+ *
+ * @param viewModel 位置模拟的 ViewModel，用于管理位置信息、模拟状态和更新检查。
+ * @param onNavigate 导航回调，用于处理侧边栏菜单点击事件，跳转到指定 ID 的目标界面。
+ * @param onAddLocation 添加位置回调，当用户点击添加按钮时触发。
+ * @param appVersion 当前应用版本号，显示在侧边栏头部。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationSimulationScreen(

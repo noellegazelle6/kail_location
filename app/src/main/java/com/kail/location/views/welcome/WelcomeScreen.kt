@@ -20,6 +20,16 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.kail.location.R
 
+/**
+ * 欢迎屏幕 UI
+ * 包含全屏背景图、进入按钮以及协议勾选区域。
+ *
+ * @param onStartClick 点击进入应用的回调
+ * @param onAgreementClick 点击用户协议链接的回调
+ * @param onPrivacyClick 点击隐私政策链接的回调
+ * @param isChecked 协议勾选框的选中状态
+ * @param onCheckedChange 协议勾选框状态变更回调
+ */
 @Composable
 fun WelcomeScreen(
     onStartClick: () -> Unit,
@@ -96,6 +106,15 @@ fun WelcomeScreen(
     }
 }
 
+/**
+ * 协议/隐私政策弹窗
+ * 展示协议的具体文本内容，提供同意与不同意按钮。
+ *
+ * @param title 弹窗标题
+ * @param content 协议文本内容
+ * @param onDismiss 点击不同意或取消的回调
+ * @param onAgree 点击同意的回调
+ */
 @Composable
 fun AgreementDialog(
     title: String,

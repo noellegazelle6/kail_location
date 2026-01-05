@@ -20,6 +20,13 @@ import com.kail.location.utils.GoUtils
 import com.kail.location.R
 import java.util.ArrayList
 
+/**
+ * 欢迎/启动页面活动
+ * 应用的入口页面，负责：
+ * 1. 检查并请求必要的权限（定位、存储、电话状态）
+ * 2. 展示用户协议与隐私政策，并处理用户的同意状态
+ * 3. 检查 GPS 与网络状态，通过后跳转至主页面
+ */
 class WelcomeActivity : AppCompatActivity() {
     private lateinit var preferences: SharedPreferences
     private var mAgreement = false
@@ -33,6 +40,12 @@ class WelcomeActivity : AppCompatActivity() {
 
     private var isPermission = false
 
+    /**
+     * 活动创建回调
+     * 初始化 SharedPreferences，设置默认偏好值，并加载 Compose UI。
+     *
+     * @param savedInstanceState Activity 的状态保存对象
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -112,6 +125,14 @@ class WelcomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 权限请求结果回调
+     * 处理用户对权限申请的响应，如果必要的定位权限被授予，则继续启动流程；否则提示用户手动开启。
+     *
+     * @param requestCode 请求码
+     * @param permissions 请求的权限列表
+     * @param grantResults 授权结果列表
+     */
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<String>,
@@ -137,6 +158,10 @@ class WelcomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 显示权限设置引导弹窗
+     * 当必要权限被拒绝时调用，引导用户跳转到系统设置页面手动授予权限。
+     */
     private fun showPermissionSettingsDialog() {
         android.app.AlertDialog.Builder(this)
             .setTitle(R.string.app_name)
@@ -155,6 +180,11 @@ class WelcomeActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * 检查并请求默认权限
+     * 依次检查定位（精确/粗略）、存储（读/写）和电话状态权限。
+     * 如果所有权限均已授予，则标记 isPermission 为 true；否则发起权限请求。
+     */
     private fun checkDefaultPermissions() {
         val permissionsToRequest = ArrayList<String>()
         
@@ -190,6 +220,17 @@ class WelcomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 启动主活动
+     * 在跳转前进行一系列检查：
+     * 1. 是否已勾选协议
+     * 2. 网络是否可用
+     * 3. GPS 是否开启
+     * 4. 权限是否完备
+     * 若所有检查通过，则跳转到 LocationSimulationActivity 并关闭当前页面。
+     *
+     * @param isChecked 是否已勾选同意协议
+     */
     private fun startMainActivity(isChecked: Boolean) {
         if (!isChecked) {
             GoUtils.DisplayToast(this, getString(R.string.app_error_agreement))
@@ -215,6 +256,10 @@ class WelcomeActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 保存协议同意状态
+     * 将当前的协议同意与隐私政策同意状态写入 SharedPreferences。
+     */
     private fun doAcceptation() {
         //实例化Editor对象
         val editor = preferences.edit()

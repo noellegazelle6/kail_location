@@ -26,6 +26,10 @@ import com.kail.location.views.joystick.JoyStickOverlay
 import kotlin.math.abs
 import kotlin.math.cos
 
+/**
+ * 前台定位模拟服务。
+ * 管理模拟位置提供者、摇杆悬浮窗以及后台线程执行。
+ */
 class ServiceGo : Service() {
     // 定位相关变量
     private var mCurLat = DEFAULT_LAT
@@ -62,18 +66,29 @@ class ServiceGo : Service() {
 
         // 通知栏消息
         private const val SERVICE_GO_NOTE_ID = 1
-        private const val SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW = "ShowJoyStick"
-        private const val SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE = "HideJoyStick"
+        const val SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW = "ShowJoyStick"
+        const val SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE = "HideJoyStick"
         private const val SERVICE_GO_NOTE_CHANNEL_ID = "SERVICE_GO_NOTE"
         private const val SERVICE_GO_NOTE_CHANNEL_NAME = "SERVICE_GO_NOTE"
         const val EXTRA_ROUTE_POINTS = "EXTRA_ROUTE_POINTS"
         const val EXTRA_ROUTE_LOOP = "EXTRA_ROUTE_LOOP"
+        const val EXTRA_JOYSTICK_ENABLED = "EXTRA_JOYSTICK_ENABLED"
     }
 
+    /**
+     * 绑定服务到 Activity。
+     *
+     * @param intent 绑定意图。
+     * @return 服务的 Binder 实例。
+     */
     override fun onBind(intent: Intent): IBinder {
         return mBinder
     }
 
+    /**
+     * 服务创建回调。
+     * 初始化通知、定位管理器、后台 Handler 以及摇杆。
+     */
     override fun onCreate() {
         super.onCreate()
         XLog.i("ServiceGo: onCreate started")
@@ -121,6 +136,15 @@ class ServiceGo : Service() {
         XLog.i("ServiceGo: onCreate finished")
     }
 
+    /**
+     * 服务启动回调。
+     * 处理位置、路线与摇杆设置相关的启动参数。
+     *
+     * @param intent 启动服务时传入的意图。
+     * @param flags 启动标志。
+     * @param startId 启动 ID。
+     * @return 返回服务的启动语义。
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Ensure startForeground is called to prevent crash (ForegroundServiceDidNotStartInTimeException)
         // even if onCreate was skipped (service already running)
@@ -143,6 +167,7 @@ class ServiceGo : Service() {
             mCurLng = intent.getDoubleExtra(MainActivity.LNG_MSG_ID, DEFAULT_LNG)
             mCurLat = intent.getDoubleExtra(MainActivity.LAT_MSG_ID, DEFAULT_LAT)
             mCurAlt = intent.getDoubleExtra(MainActivity.ALT_MSG_ID, DEFAULT_ALT)
+            val joystickEnabled = intent.getBooleanExtra(EXTRA_JOYSTICK_ENABLED, true)
             val routeArray = intent.getDoubleArrayExtra(EXTRA_ROUTE_POINTS)
             if (routeArray != null && routeArray.size >= 2) {
                 mRoutePoints.clear()
@@ -160,11 +185,14 @@ class ServiceGo : Service() {
             if (this::mJoyStick.isInitialized) {
                 try {
                     mJoyStick.setCurrentPosition(mCurLng, mCurLat, mCurAlt)
-                    // Retry showing joystick if it was hidden or permission was just granted
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
-                        mJoyStick.show()
+                    if (joystickEnabled) {
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
+                            mJoyStick.show()
+                        } else {
+                            GoUtils.DisplayToast(applicationContext, "请授予悬浮窗权限")
+                        }
                     } else {
-                        GoUtils.DisplayToast(applicationContext, "请授予悬浮窗权限")
+                        mJoyStick.hide()
                     }
                 } catch (e: Exception) {
                     XLog.e("ServiceGo: Error setting current position or showing joystick", e)
@@ -175,6 +203,10 @@ class ServiceGo : Service() {
         return super.onStartCommand(intent, flags, startId)
     }
 
+    /**
+     * 服务销毁回调。
+     * 清理资源、广播接收器并停止前台服务。
+     */
     override fun onDestroy() {
         XLog.i("ServiceGo: onDestroy started")
         try {
@@ -210,13 +242,21 @@ class ServiceGo : Service() {
         XLog.i("ServiceGo: onDestroy finished")
     }
 
+    /**
+     * 初始化前台服务通知。
+     * 同时注册通知栏操作的广播接收器。
+     */
     private fun initNotification() {
         if (mActReceiver == null) {
             mActReceiver = NoteActionReceiver()
             val filter = IntentFilter()
             filter.addAction(SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW)
             filter.addAction(SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE)
-            registerReceiver(mActReceiver, filter)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(mActReceiver, filter, RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(mActReceiver, filter)
+            }
         }
 
         val mChannel = NotificationChannel(
@@ -269,6 +309,9 @@ class ServiceGo : Service() {
         }
     }
 
+    /**
+     * 初始化摇杆并设置监听器。
+     */
     private fun initJoyStick() {
         mJoyStick = JoyStick(this)
         mJoyStick.setListener(object : JoyStick.JoyStickClickListener {
@@ -289,9 +332,12 @@ class ServiceGo : Service() {
                 mCurAlt = alt
             }
         })
-        mJoyStick.show()
+        // mJoyStick.show() // Removed to avoid unconditional show on init
     }
 
+    /**
+     * 初始化定位更新的后台线程与 Handler。
+     */
     private fun initGoLocation() {
         // 创建 HandlerThread 实例，第一个参数是线程的名字
         mLocHandlerThread = HandlerThread(SERVICE_GO_HANDLER_NAME, Process.THREAD_PRIORITY_FOREGROUND)
@@ -340,6 +386,9 @@ class ServiceGo : Service() {
         mLocHandler.sendEmptyMessage(HANDLER_MSG_ID)
     }
 
+    /**
+     * 移除 GPS 测试提供者。
+     */
     private fun removeTestProviderGPS() {
         try {
             if (mLocManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
@@ -353,6 +402,9 @@ class ServiceGo : Service() {
 
     // 注意下面临时添加 @SuppressLint("wrongconstant") 以处理 addTestProvider 参数值的 lint 错误
     @SuppressLint("WrongConstant")
+    /**
+     * 添加并启用 GPS 测试提供者（Android S 及以上使用 ProviderProperties）。
+     */
     private fun addTestProviderGPS() {
         try {
             // 注意，由于 android api 问题，下面的参数会提示错误(以下参数是通过相关API获取的真实GPS参数，不是随便写的)
@@ -376,6 +428,9 @@ class ServiceGo : Service() {
         }
     }
 
+    /**
+     * 为 GPS 提供者设置模拟位置（精度、海拔、方向、速度等属性）。
+     */
     private fun setLocationGPS() {
         try {
             // 尽可能模拟真实的 GPS 数据
@@ -405,6 +460,9 @@ class ServiceGo : Service() {
         }
     }
 
+    /**
+     * 移除 Network 测试提供者。
+     */
     private fun removeTestProviderNetwork() {
         try {
             if (mLocManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
@@ -418,6 +476,12 @@ class ServiceGo : Service() {
 
     // 注意下面临时添加 @SuppressLint("wrongconstant") 以处理 addTestProvider 参数值的 lint 错误
     @SuppressLint("WrongConstant")
+    /**
+     * Adds the Network test provider with appropriate settings.
+     * Uses ProviderProperties on Android S and above; falls back to
+     * deprecated integer constants on older versions. Ensures the
+     * provider is enabled after addition.
+     */
     private fun addTestProviderNetwork() {
         try {
             // 注意，由于 android api 问题，下面的参数会提示错误(以下参数是通过相关API获取的真实NETWORK参数，不是随便写的)
@@ -443,6 +507,9 @@ class ServiceGo : Service() {
         }
     }
 
+    /**
+     * 为 Network 提供者设置模拟位置（精度、海拔、方向、速度等属性）。
+     */
     private fun setLocationNetwork() {
         try {
             // 尽可能模拟真实的 GPS 数据
@@ -472,6 +539,9 @@ class ServiceGo : Service() {
         }
     }
 
+    /**
+     * 通知栏操作（显示/隐藏摇杆）的广播接收器。
+     */
     inner class NoteActionReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val action = intent.action
@@ -479,7 +549,6 @@ class ServiceGo : Service() {
                 if (action == SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW) {
                     mJoyStick.show()
                 }
-
                 if (action == SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE) {
                     mJoyStick.hide()
                 }
@@ -487,14 +556,12 @@ class ServiceGo : Service() {
         }
     }
 
+    /**
+     * ServiceGo 的 Binder。
+     */
     inner class ServiceGoBinder : Binder() {
-        fun setPosition(lng: Double, lat: Double, alt: Double) {
-            mLocHandler.removeMessages(HANDLER_MSG_ID)
-            mCurLng = lng
-            mCurLat = lat
-            mCurAlt = alt
-            mLocHandler.sendEmptyMessage(HANDLER_MSG_ID)
-            mJoyStick.setCurrentPosition(mCurLng, mCurLat, mCurAlt)
+        fun getService(): ServiceGo {
+            return this@ServiceGo
         }
     }
 }

@@ -37,6 +37,16 @@ import com.kail.location.views.history.HistoryActivity
 import com.kail.location.views.main.MainActivity
 import com.kail.location.viewmodels.MainViewModel
 
+/**
+ * 历史记录浮窗的组合函数。
+ * 在悬浮窗中显示历史记录列表。
+ *
+ * @param historyRecords 要展示的历史记录列表。
+ * @param onClose 点击关闭按钮的回调。
+ * @param onWindowDrag 悬浮窗拖动回调（dx, dy）。
+ * @param onSelectRecord 选中某条历史记录时的回调。
+ * @param onSearch 搜索关键字变化时的回调。
+ */
 @Composable
 fun JoyStickHistoryOverlay(
     historyRecords: List<Map<String, Any>>,
@@ -113,6 +123,12 @@ fun JoyStickHistoryOverlay(
     }
 }
 
+/**
+ * 单条历史记录项的组合函数。
+ *
+ * @param record 历史记录数据。
+ * @param onClick 点击项时的回调。
+ */
 @Composable
 fun HistoryItem(
     record: Map<String, Any>,
@@ -140,6 +156,19 @@ fun HistoryItem(
     }
 }
 
+/**
+ * 地图浮窗的组合函数。
+ * 在悬浮窗中显示地图与搜索/传送等控制。
+ *
+ * @param mapView 要展示的 MapView 实例。
+ * @param onClose 点击关闭按钮的回调。
+ * @param onWindowDrag 悬浮窗拖动回调（dx, dy）。
+ * @param onGo 点击“GO”时的回调。
+ * @param onBackToCurrent 返回当前位置的回调。
+ * @param onSearch 搜索关键字变化时的回调。
+ * @param searchResults 搜索结果列表。
+ * @param onSelectSearchResult 选中搜索结果时的回调。
+ */
 @Composable
 fun JoyStickMapOverlay(
     mapView: MapView, // Pass initialized MapView

@@ -6,12 +6,29 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.elvishew.xlog.XLog
 
+/**
+ * 历史定位数据的 SQLite 辅助类。
+ *
+ * @param context 应用上下文。
+ */
 class DataBaseHistoryLocation(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
 
+    /**
+     * 首次创建数据库时回调。
+     *
+     * @param sqLiteDatabase 数据库实例。
+     */
     override fun onCreate(sqLiteDatabase: SQLiteDatabase) {
         sqLiteDatabase.execSQL(CREATE_TABLE)
     }
 
+    /**
+     * 数据库需要升级时回调。
+     *
+     * @param sqLiteDatabase 数据库实例。
+     * @param oldVersion 旧版本号。
+     * @param newVersion 新版本号。
+     */
     override fun onUpgrade(sqLiteDatabase: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         val sql = "DROP TABLE IF EXISTS $TABLE_NAME"
         sqLiteDatabase.execSQL(sql)
@@ -35,7 +52,13 @@ class DataBaseHistoryLocation(context: Context) : SQLiteOpenHelper(context, DB_N
                 "DB_COLUMN_LONGITUDE_WGS84 TEXT NOT NULL, DB_COLUMN_LATITUDE_WGS84 TEXT NOT NULL, " +
                 "DB_COLUMN_TIMESTAMP BIGINT NOT NULL, DB_COLUMN_LONGITUDE_CUSTOM TEXT NOT NULL, DB_COLUMN_LATITUDE_CUSTOM TEXT NOT NULL)"
 
-        // 保存选择的位置
+        /**
+         * 保存历史定位记录。
+         * 在插入前，若存在相同 WGS84 坐标的记录则先删除。
+         *
+         * @param sqLiteDatabase 数据库实例。
+         * @param contentValues 要保存的键值对。
+         */
         @JvmStatic
         fun saveHistoryLocation(sqLiteDatabase: SQLiteDatabase, contentValues: ContentValues) {
             try {
@@ -53,6 +76,17 @@ class DataBaseHistoryLocation(context: Context) : SQLiteOpenHelper(context, DB_N
             }
         }
 
+        /**
+         * 新增一条历史定位记录。
+         *
+         * @param sqLiteDatabase 数据库实例。
+         * @param name 位置名称。
+         * @param lonWgs84 WGS84 经度。
+         * @param latWgs84 WGS84 纬度。
+         * @param timestamp 时间戳字符串。
+         * @param lonCustom 自定义经度（BD-09）。
+         * @param latCustom 自定义纬度（BD-09）。
+         */
         @JvmStatic
         fun addHistoryLocation(
             sqLiteDatabase: SQLiteDatabase?,
@@ -74,7 +108,13 @@ class DataBaseHistoryLocation(context: Context) : SQLiteOpenHelper(context, DB_N
             saveHistoryLocation(sqLiteDatabase, contentValues)
         }
 
-        // 修改历史记录名称
+        /**
+         * 更新历史定位记录的名称。
+         *
+         * @param sqLiteDatabase 数据库实例。
+         * @param locID 要更新的记录 ID。
+         * @param location 新的位置名称。
+         */
         @JvmStatic
         fun updateHistoryLocation(sqLiteDatabase: SQLiteDatabase, locID: String, location: String?) {
             try {

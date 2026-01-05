@@ -37,6 +37,15 @@ import android.content.Intent
 import android.net.Uri
 import com.kail.location.views.common.UpdateDialog
 
+/**
+ * 路线模拟主界面
+ * 展示目标路线与历史路线列表，并提供导航抽屉、更新提示与设置弹窗。
+ *
+ * @param viewModel 路线模拟 ViewModel，负责数据与状态管理
+ * @param onNavigate 导航回调，依据菜单项跳转到对应页面
+ * @param onAddRouteClick 添加路线点击回调，切换到路线规划界面
+ * @param appVersion 应用版本号，用于抽屉头部展示
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RouteSimulationScreen(
@@ -228,6 +237,16 @@ fun RouteSimulationScreen(
     }
 }
 
+/**
+ * 路线卡片组件
+ * 展示单条路线的起止信息，作为目标路线时支持启动模拟、打开设置与循环开关。
+ *
+ * @param route 路线信息数据
+ * @param isTarget 是否为目标路线卡片；为 true 时显示更多操作
+ * @param settings 当为目标卡片时的模拟设置；为空则不显示设置与循环开关
+ * @param onSettingsClick 设置点击回调
+ * @param onLoopToggle 循环开关变更回调
+ */
 @Composable
 fun RouteCard(
     route: RouteInfo,
@@ -368,11 +387,25 @@ fun RouteCard(
     }
 }
 
-// Extension to scale composables
+/**
+ * 组件缩放扩展
+ * 为任意 Modifier 增加按比例缩放的效果。
+ *
+ * @param scale 缩放比例，1.0 为原始大小
+ * @return 新的 Modifier，包含缩放效果
+ */
 fun Modifier.scale(scale: Float): Modifier = this.then(
     Modifier.graphicsLayer(scaleX = scale, scaleY = scale)
 )
 
+/**
+ * 模拟设置弹窗
+ * 允许用户调整运动速度、交通方式、速度浮动与步频相关设置。
+ *
+ * @param settings 当前模拟设置状态
+ * @param onDismiss 关闭弹窗回调
+ * @param onSettingsChange 设置变更回调
+ */
 @Composable
 fun SettingsDialog(
     settings: SimulationSettings,
@@ -482,6 +515,12 @@ fun SettingsDialog(
     }
 }
 
+/**
+ * 根据交通方式返回对应图标资源
+ *
+ * @param mode 交通方式
+ * @return 对应的 drawable 资源 ID
+ */
 fun getModeIcon(mode: TransportMode): Int {
     return when (mode) {
         TransportMode.Walk -> R.drawable.ic_walk
@@ -491,5 +530,4 @@ fun getModeIcon(mode: TransportMode): Int {
         TransportMode.Plane -> R.drawable.ic_fly
     }
 }
-
 

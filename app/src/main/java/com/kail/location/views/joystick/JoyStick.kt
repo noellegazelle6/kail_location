@@ -36,6 +36,15 @@ import java.util.*
 import kotlin.math.cos
 import kotlin.math.sin
 
+/**
+ * Custom View representing a joystick for location simulation.
+ * Handles touch events to calculate speed and direction, and manages floating windows.
+ *
+ * @constructor Creates a new JoyStick view.
+ * @param mContext The context.
+ * @param attrs Attribute set.
+ * @param defStyleAttr Default style attribute.
+ */
 class JoyStick @JvmOverloads constructor(
     private val mContext: Context,
     attrs: AttributeSet? = null,
@@ -47,22 +56,24 @@ class JoyStick @JvmOverloads constructor(
     private var mCurWin = WINDOW_TYPE_JOYSTICK
     private var mListener: JoyStickClickListener? = null
 
-    // 移动
+    // Movement variables
     private lateinit var mJoystickLayout: ComposeView
     private lateinit var mTimer: GoUtils.TimeCount
     private var isMove = false
-    private var mSpeed = 1.2        /* 默认的速度，单位 m/s */
+    private var mSpeed = 1.2        /* Default speed in m/s */
     private var mAltitude = 55.0
     private var mAngle = 0.0
     private var mR = 0.0
     private var disLng = 0.0
     private var disLat = 0.0
     private val sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(mContext)
-    /* 历史记录悬浮窗相关 */
+    
+    /* History Window related */
     private lateinit var mHistoryLayout: ComposeView
     private val mAllRecord: MutableList<Map<String, Any>> = ArrayList()
     private val mHistoryRecordsState = mutableStateOf<List<Map<String, Any>>>(emptyList())
-    /* 地图悬浮窗相关 */
+    
+    /* Map Window related */
     private lateinit var mMapLayout: ComposeView
     private lateinit var mMapView: MapView
     private lateinit var mBaiduMap: BaiduMap
@@ -74,43 +85,48 @@ class JoyStick @JvmOverloads constructor(
     private val mLifecycleOwner = MyLifecycleOwner()
 
     companion object {
-        private const val DivGo = 1000L    /* 移动的时间间隔，单位 ms */
+        private const val DivGo = 1000L    /* Movement interval in ms */
         private const val WINDOW_TYPE_JOYSTICK = 0
         private const val WINDOW_TYPE_MAP = 1
         private const val WINDOW_TYPE_HISTORY = 2
+        
+        /**
+         * Custom LifecycleOwner for ComposeViews in WindowManager.
+         * Ensures that Compose content has a proper lifecycle.
+         */
         private class MyLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
-        private val lifecycleRegistry: LifecycleRegistry = LifecycleRegistry(this)
-        private val savedStateRegistryController: SavedStateRegistryController = SavedStateRegistryController.create(this)
-        private val mViewModelStore: ViewModelStore = ViewModelStore()
+            private val lifecycleRegistry: LifecycleRegistry = LifecycleRegistry(this)
+            private val savedStateRegistryController: SavedStateRegistryController = SavedStateRegistryController.create(this)
+            private val mViewModelStore: ViewModelStore = ViewModelStore()
 
-        override val lifecycle: Lifecycle
-            get() = lifecycleRegistry
+            override val lifecycle: Lifecycle
+                get() = lifecycleRegistry
 
-        override val savedStateRegistry: SavedStateRegistry
-            get() = savedStateRegistryController.savedStateRegistry
+            override val savedStateRegistry: SavedStateRegistry
+                get() = savedStateRegistryController.savedStateRegistry
 
-        override val viewModelStore: ViewModelStore
-            get() = mViewModelStore
+            override val viewModelStore: ViewModelStore
+                get() = mViewModelStore
 
-        fun onCreate() {
-            savedStateRegistryController.performRestore(null)
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
-        }
+            fun onCreate() {
+                savedStateRegistryController.performRestore(null)
+                lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+            }
 
-        fun onResume() {
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-        }
+            fun onResume() {
+                lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+            }
 
-        fun onPause() {
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-        }
+            fun onPause() {
+                lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+            }
 
-        fun onDestroy() {
-            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-            mViewModelStore.clear()
+            fun onDestroy() {
+                lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+                mViewModelStore.clear()
+            }
         }
     }
-}
 
     init {
         initWindowManager()
@@ -130,6 +146,13 @@ class JoyStick @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Sets the current position for the joystick simulation.
+     *
+     * @param lng Longitude (WGS84).
+     * @param lat Latitude (WGS84).
+     * @param alt Altitude.
+     */
     fun setCurrentPosition(lng: Double, lat: Double, alt: Double) {
         val lngLat = MapUtils.wgs2bd09(lng, lat)
         mCurMapLngLat = LatLng(lngLat[1], lngLat[0])
@@ -138,6 +161,9 @@ class JoyStick @JvmOverloads constructor(
         resetBaiduMap()
     }
 
+    /**
+     * Shows the joystick window (or the currently active window type).
+     */
     fun show() {
         try {
             when (mCurWin) {
@@ -182,6 +208,9 @@ class JoyStick @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Hides all joystick windows.
+     */
     fun hide() {
         if (this::mMapLayout.isInitialized && mMapLayout.parent != null) {
             mWindowManager.removeViewImmediate(mMapLayout)
@@ -196,6 +225,9 @@ class JoyStick @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Destroys the joystick view and releases resources.
+     */
     fun destroy() {
         try {
             mLifecycleOwner.onDestroy()
@@ -227,10 +259,18 @@ class JoyStick @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Sets the listener for joystick events.
+     *
+     * @param mListener The listener to set.
+     */
     fun setListener(mListener: JoyStickClickListener) {
         this.mListener = mListener
     }
 
+    /**
+     * Initializes the WindowManager and layout parameters for the floating window.
+     */
     private fun initWindowManager() {
         mWindowManager = mContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         mWindowParamCurrent = WindowManager.LayoutParams()
@@ -251,6 +291,10 @@ class JoyStick @JvmOverloads constructor(
         mWindowParamCurrent.y = 300
     }
 
+    /**
+     * Initializes the joystick view using Jetpack Compose.
+     * Sets up the movement timer and UI callbacks.
+     */
     @SuppressLint("InflateParams")
     private fun initJoyStickView() {
         /* 移动计时器 */
@@ -315,6 +359,13 @@ class JoyStick @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Processes joystick direction updates.
+     *
+     * @param auto Whether auto-movement is enabled.
+     * @param angle The movement angle.
+     * @param r The movement radius (intensity).
+     */
     private fun processDirection(auto: Boolean, angle: Double, r: Double) {
         if (r <= 0) {
             mTimer.cancel()
@@ -339,13 +390,35 @@ class JoyStick @JvmOverloads constructor(
     }
 
 
-
+    /**
+     * Interface definition for callbacks to be invoked when joystick events occur.
+     */
     interface JoyStickClickListener {
+        /**
+         * Called when the joystick is moved.
+         *
+         * @param speed The calculated speed.
+         * @param disLng The displacement in longitude.
+         * @param disLat The displacement in latitude.
+         * @param angle The angle of movement.
+         */
         fun onMoveInfo(speed: Double, disLng: Double, disLat: Double, angle: Double)
+
+        /**
+         * Called when the position is updated (e.g., teleporting via map).
+         *
+         * @param lng Longitude.
+         * @param lat Latitude.
+         * @param alt Altitude.
+         */
         fun onPositionInfo(lng: Double, lat: Double, alt: Double)
     }
 
 
+    /**
+     * Initializes the map view for the joystick overlay.
+     * Sets up Baidu Map, listeners, and Compose UI for the map window.
+     */
     @SuppressLint("InflateParams", "ClickableViewAccessibility")
     private fun initJoyStickMapView() {
         mMapLayout = ComposeView(mContext).apply {
@@ -454,6 +527,10 @@ class JoyStick @JvmOverloads constructor(
 
 
 
+    /**
+     * Resets the Baidu Map to the current simulated location.
+     * Clears overlays and centers the map.
+     */
     private fun resetBaiduMap() {
         if (!this::mBaiduMap.isInitialized) {
             XLog.e("JoyStick: mBaiduMap not initialized in resetBaiduMap")
@@ -476,6 +553,11 @@ class JoyStick @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Marks a location on the Baidu Map.
+     *
+     * @param latLng The location to mark.
+     */
     private fun markBaiduMap(latLng: LatLng) {
         if (!this::mBaiduMap.isInitialized) {
             XLog.e("JoyStick: mBaiduMap not initialized in markBaiduMap")
@@ -560,6 +642,9 @@ class JoyStick @JvmOverloads constructor(
         }
     }
 
+    /**
+     * 从数据库读取全部历史记录并更新 UI 状态。
+     */
     private fun fetchAllRecord() {
         val mHistoryLocationDB: SQLiteDatabase
         mAllRecord.clear()

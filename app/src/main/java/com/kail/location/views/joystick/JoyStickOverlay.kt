@@ -37,6 +37,18 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+/**
+ * Composable function for the joystick overlay UI.
+ * Provides controls for movement, speed selection, and opening other windows.
+ *
+ * @param onMoveInfo Callback for joystick movement updates.
+ *                   Parameters: auto (Boolean), angle (Double), r (Double).
+ * @param onSpeedChange Callback when the speed mode changes.
+ * @param onWindowDrag Callback when the window is dragged.
+ * @param onOpenMap Callback to open the map window.
+ * @param onOpenHistory Callback to open the history window.
+ * @param onClose Callback to close the joystick (unused in current UI).
+ */
 @Composable
 fun JoyStickOverlay(
     onMoveInfo: (Boolean, Double, Double) -> Unit, // auto, angle, r
@@ -157,6 +169,13 @@ fun JoyStickOverlay(
     }
 }
 
+/**
+ * Composable function for the rocker (joystick) control.
+ *
+ * @param modifier Modifier for the layout.
+ * @param onUpdate Callback for joystick updates.
+ *                 Parameters: isAuto (Boolean), angle (Double), r (Double).
+ */
 @Composable
 fun Rocker(
     modifier: Modifier = Modifier,
@@ -286,7 +305,12 @@ fun Rocker(
         )
     }
 }
-// Re-implement Rocker simpler:
+/**
+ * Simplified Rocker implementation (alternative).
+ *
+ * @param modifier Modifier for the layout.
+ * @param onUpdate Callback for joystick updates.
+ */
 @Composable
 fun RockerSimple(
     modifier: Modifier = Modifier,
@@ -354,6 +378,11 @@ fun RockerSimple(
 }
 
 
+/**
+ * Composable function for directional buttons control.
+ *
+ * @param onUpdate Callback for direction updates.
+ */
 @Composable
 fun DirectionalButtons(
     onUpdate: (Boolean, Double, Double) -> Unit
@@ -463,6 +492,13 @@ fun DirectionalButtons(
     }
 }
 
+/**
+ * Composable for a single direction button.
+ *
+ * @param iconRes Icon resource ID.
+ * @param isActive Whether the button is active.
+ * @param onClick Callback when clicked.
+ */
 @Composable
 fun DirectionButton(
     iconRes: Int,
@@ -483,6 +519,15 @@ fun DirectionButton(
     }
 }
 
+/**
+ * Composable for a circular icon button used in the joystick menu.
+ *
+ * @param iconRes Icon resource ID.
+ * @param contentDescription Content description.
+ * @param onClick Callback when clicked.
+ * @param modifier Modifier.
+ * @param isSelected Whether the button is selected.
+ */
 @Composable
 fun CircleIconButton(
     iconRes: Int,

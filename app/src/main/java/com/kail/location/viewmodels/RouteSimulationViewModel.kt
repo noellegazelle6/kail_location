@@ -17,17 +17,35 @@ import com.kail.location.utils.UpdateChecker
 import android.content.Context
 import android.widget.Toast
 
+/**
+ * 路线模拟页面的 ViewModel。
+ * 负责加载历史路线并检查应用更新。
+ *
+ * @property application 应用上下文。
+ */
 class RouteSimulationViewModel(application: Application) : AndroidViewModel(application) {
     private val _historyRoutes = MutableStateFlow<List<RouteInfo>>(emptyList())
+    /**
+     * 历史路线列表的状态流。
+     */
     val historyRoutes: StateFlow<List<RouteInfo>> = _historyRoutes.asStateFlow()
 
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
+    /**
+     * 可用更新信息的状态流。
+     */
     val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
 
     init {
         loadRoutes()
     }
 
+    /**
+     * 检查应用更新。
+     *
+     * @param context 用于检查更新的上下文。
+     * @param isAuto 是否为自动检查。
+     */
     fun checkUpdate(context: Context, isAuto: Boolean = false) {
         UpdateChecker.check(context) { info, error ->
             if (info != null) {
@@ -46,10 +64,16 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
+    /**
+     * 关闭更新弹窗。
+     */
     fun dismissUpdateDialog() {
         _updateInfo.value = null
     }
 
+    /**
+     * 从 SharedPreferences 加载已保存的路线。
+     */
     fun loadRoutes() {
         viewModelScope.launch {
             val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
@@ -59,6 +83,12 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
+    /**
+     * 解析路线的 JSON 字符串为 RouteInfo 列表。
+     *
+     * @param json 包含路线数据的 JSON 字符串。
+     * @return RouteInfo 列表。
+     */
     private fun parseRoutes(json: String): List<RouteInfo> {
         return try {
             val arr = JSONArray(json)
