@@ -180,6 +180,12 @@ fun MainScreen(
                     selected = false,
                     onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_sponsor) } }
                 )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.nav_menu_github)) },
+                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_source_code) } }
+                )
             }
         }
     ) {

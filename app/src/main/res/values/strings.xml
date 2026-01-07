@@ -128,6 +128,7 @@
     <string name="nav_menu_contact">联系作者：kailkali23143@gmail.com</string>
     <string name="nav_app_tips">仅供学习使用，否则后果自负!</string>
     <string name="nav_menu_sponsor">赞助作者</string>
+    <string name="nav_menu_github">开源仓库</string>
     <string name="sponsor_title">赞助作者</string>
     <string name="sponsor_tron_note">仅支持 TRON 资产收款</string>
 

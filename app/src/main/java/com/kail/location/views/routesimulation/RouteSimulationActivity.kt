@@ -95,6 +95,14 @@ class RouteSimulationActivity : BaseActivity() {
                                 Toast.makeText(this@RouteSimulationActivity, "无法打开邮件应用", Toast.LENGTH_SHORT).show()
                             }
                         }
+                        R.id.nav_source_code -> {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/noellegazelle6/kail_location"))
+                                startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(this@RouteSimulationActivity, "无法打开浏览器", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                         R.id.nav_dev -> {
                             try {
                                 val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)

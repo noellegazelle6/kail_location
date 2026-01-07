@@ -286,6 +286,14 @@ class MainActivity : BaseActivity(), SensorEventListener {
                                     Toast.makeText(this, "无法打开邮件应用", Toast.LENGTH_SHORT).show()
                                 }
                             }
+                            R.id.nav_source_code -> {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/noellegazelle6/kail_location"))
+                                startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(this, "无法打开浏览器", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                             R.id.nav_update -> checkUpdate(false)
                             // TODO: Add other navigation items
                         }
