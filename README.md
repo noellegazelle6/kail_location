@@ -41,4 +41,3 @@ https://github.com/Lerist/FakeLocation
 
 TVvudxmNTwzRFe3z7ts9srZE1srkqXgmxm
 
-严格按照mvvm与Jetpack Compose写，完成后你执行./gradlew.bat :app:assembleDebug 一下没问题给我
