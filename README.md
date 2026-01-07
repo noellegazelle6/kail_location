@@ -34,7 +34,8 @@ ui：Jetpack Compose
 https://github.com/ZCShou/GoGoGo
 https://github.com/Lerist/FakeLocation
 赞赏作者：
-![76777939482](E:\code\Android\kail_location\assets\1767779394823.png)
+
+<img width="538" height="397" alt="屏幕截图 2026-01-07 174952" src="https://github.com/user-attachments/assets/eca818b7-d450-4c0b-ae21-c1ad9f493684" />
 
 
 
