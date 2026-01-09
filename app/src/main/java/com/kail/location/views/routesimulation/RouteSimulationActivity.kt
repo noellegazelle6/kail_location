@@ -69,6 +69,8 @@ class RouteSimulationActivity : BaseActivity() {
         setContent {
             locationTheme {
                 var currentScreen by remember { mutableStateOf(Screen.LIST) }
+                val runMode by viewModel.runMode.collectAsState()
+                
                 val onNavigate: (Int) -> Unit = { id ->
                     when (id) {
                         R.id.nav_location_simulation -> {
@@ -121,6 +123,8 @@ class RouteSimulationActivity : BaseActivity() {
                     Screen.LIST -> {
                         RouteSimulationScreen(
                             viewModel = viewModel,
+                            runMode = runMode,
+                            onRunModeChange = { viewModel.setRunMode(it) },
                             onNavigate = onNavigate,
                             onAddRouteClick = { currentScreen = Screen.PLAN },
                             appVersion = version,
@@ -175,7 +179,9 @@ class RouteSimulationActivity : BaseActivity() {
                             },
                             onNavigate = onNavigate,
                             appVersion = version,
-                            viewModel = viewModel
+                            viewModel = viewModel,
+                            runMode = runMode,
+                            onRunModeChange = { viewModel.setRunMode(it) }
                         )
                     }
                 }

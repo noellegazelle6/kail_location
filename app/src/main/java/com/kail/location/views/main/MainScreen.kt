@@ -68,6 +68,11 @@ import android.widget.ImageView
 fun MainScreen(
     mapView: MapView?,
     isMocking: Boolean,
+    targetLocation: com.baidu.mapapi.model.LatLng,
+    mapType: Int,
+    currentCity: String?,
+    runMode: String,
+    onRunModeChange: (String) -> Unit,
     onToggleMock: () -> Unit,
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
@@ -98,6 +103,59 @@ fun MainScreen(
     
     // Location Input Dialog State
     var showLocationInputDialog by remember { mutableStateOf(false) }
+
+    // Run Mode Dialog State
+    var showRunModeDialog by remember { mutableStateOf(false) }
+
+    if (showRunModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showRunModeDialog = false },
+            title = { Text(stringResource(R.string.run_mode_dialog_title)) },
+            text = {
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onRunModeChange("root")
+                                showRunModeDialog = false
+                            }
+                            .padding(16.dp)
+                    ) {
+                        RadioButton(
+                            selected = runMode == "root",
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.run_mode_root))
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onRunModeChange("noroot")
+                                showRunModeDialog = false
+                            }
+                            .padding(16.dp)
+                    ) {
+                        RadioButton(
+                            selected = runMode == "noroot",
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.run_mode_noroot))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showRunModeDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
+    }
 
     // Search State
     var isSearching by remember { mutableStateOf(false) }
@@ -143,6 +201,12 @@ fun MainScreen(
                     icon = { Icon(painterResource(R.drawable.ic_menu_settings), contentDescription = null) },
                     selected = false,
                     onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_settings) } }
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.nav_menu_run_mode)) },
+                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) }, // Reusing dev icon
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close(); showRunModeDialog = true } }
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.nav_menu_dev)) },

@@ -34,7 +34,7 @@ object MapUtils {
      * @return [经度, 纬度] 数组（BD-09）。
      */
     @JvmStatic
-    fun wgs2bd09(lng: Double, lat: Double): DoubleArray {
+    fun wgs2bd(lng: Double, lat: Double): DoubleArray {
         //第一次转换
         var dlat = transformLat(lng - 105.0, lat - 35.0)
         var dlng = transformLon(lng - 105.0, lat - 35.0)

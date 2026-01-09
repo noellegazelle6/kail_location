@@ -69,7 +69,12 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
     private val _selectedRecordId = MutableStateFlow<Int?>(null)
     val selectedRecordId: StateFlow<Int?> = _selectedRecordId.asStateFlow()
 
+    private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
+    private val _runMode = MutableStateFlow("noroot")
+    val runMode: StateFlow<String> = _runMode.asStateFlow()
+
     init {
+        _runMode.value = sharedPreferences.getString("setting_run_mode", "noroot") ?: "noroot"
         try {
             db = dbHelper.writableDatabase
             loadRecords()
@@ -91,6 +96,11 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
      */
     fun setJoystickEnabled(enabled: Boolean) {
         _isJoystickEnabled.value = enabled
+    }
+
+    fun setRunMode(mode: String) {
+        _runMode.value = mode
+        sharedPreferences.edit().putString("setting_run_mode", mode).apply()
     }
 
     /**

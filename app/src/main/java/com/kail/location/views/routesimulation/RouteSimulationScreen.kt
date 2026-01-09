@@ -50,6 +50,8 @@ import com.kail.location.views.common.UpdateDialog
 @Composable
 fun RouteSimulationScreen(
     viewModel: RouteSimulationViewModel,
+    runMode: String,
+    onRunModeChange: (String) -> Unit,
     onNavigate: (Int) -> Unit,
     onAddRouteClick: () -> Unit,
     appVersion: String,
@@ -62,6 +64,7 @@ fun RouteSimulationScreen(
     var showSettingsDialog by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<RouteInfo?>(null) }
     var renameText by remember { mutableStateOf("") }
+    var showRunModeDialog by remember { mutableStateOf(false) }
     
     val historyRoutes by viewModel.historyRoutes.collectAsState()
     val selectedId by viewModel.selectedRouteId.collectAsState()
@@ -71,6 +74,56 @@ fun RouteSimulationScreen(
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    if (showRunModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showRunModeDialog = false },
+            title = { Text(stringResource(R.string.run_mode_dialog_title)) },
+            text = {
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onRunModeChange("root")
+                                showRunModeDialog = false
+                            }
+                            .padding(16.dp)
+                    ) {
+                        RadioButton(
+                            selected = runMode == "root",
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.run_mode_root))
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onRunModeChange("noroot")
+                                showRunModeDialog = false
+                            }
+                            .padding(16.dp)
+                    ) {
+                        RadioButton(
+                            selected = runMode == "noroot",
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.run_mode_noroot))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showRunModeDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
+    }
 
     if (updateInfo != null) {
         UpdateDialog(
@@ -118,6 +171,12 @@ fun RouteSimulationScreen(
                     icon = { Icon(painterResource(R.drawable.ic_menu_settings), contentDescription = null) },
                     selected = false,
                     onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_settings) } }
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.nav_menu_run_mode)) },
+                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) }, // Reusing dev icon
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close(); showRunModeDialog = true } }
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.nav_menu_dev)) },

@@ -4,6 +4,8 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.kail.location.R
 import com.kail.location.views.base.BaseActivity
 import com.kail.location.viewmodels.LocationSimulationViewModel
@@ -35,18 +37,30 @@ class LocationSimulationActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        var version = "v1.0.0"
-        try {
-            val pInfo = packageManager.getPackageInfo(packageName, 0)
-            version = "v${pInfo.versionName}"
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
         setContent {
             locationTheme {
+                val locationInfo by viewModel.locationInfo.collectAsState()
+                val isSimulating by viewModel.isSimulating.collectAsState()
+                val isJoystickEnabled by viewModel.isJoystickEnabled.collectAsState()
+                val historyRecords by viewModel.historyRecords.collectAsState()
+                val selectedRecordId by viewModel.selectedRecordId.collectAsState()
+                val runMode by viewModel.runMode.collectAsState()
+
+                val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+
                 LocationSimulationScreen(
-                    viewModel = viewModel,
+                    locationInfo = locationInfo,
+                    isSimulating = isSimulating,
+                    isJoystickEnabled = isJoystickEnabled,
+                    historyRecords = historyRecords,
+                    selectedRecordId = selectedRecordId,
+                    onToggleSimulation = viewModel::toggleSimulation,
+                    onJoystickToggle = viewModel::setJoystickEnabled,
+                    onRecordSelect = viewModel::selectRecord,
+                    onRecordDelete = viewModel::deleteRecord,
+                    onRecordRename = viewModel::renameRecord,
+                    runMode = runMode,
+                    onRunModeChange = { viewModel.setRunMode(it) },
                     onNavigate = { id ->
                         when (id) {
                             R.id.nav_location_simulation -> {
@@ -97,7 +111,8 @@ class LocationSimulationActivity : BaseActivity() {
                     onAddLocation = {
                         startActivity(Intent(this, MainActivity::class.java))
                     },
-                    appVersion = version
+                    appVersion = version,
+                    onCheckUpdate = { viewModel.checkUpdate(this) }
                 )
             }
         }

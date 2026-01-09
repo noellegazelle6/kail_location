@@ -210,15 +210,24 @@ class MainActivity : BaseActivity(), SensorEventListener {
         }
 
         setContent {
-            locationTheme {
-                val isMocking by viewModel.isMocking.collectAsState()
-                val selectedPoi by viewModel.selectedPoi.collectAsState()
-                val updateInfo by viewModel.updateInfo.collectAsState()
-                val searchResults by viewModel.searchResults.collectAsState()
+            val isMocking by viewModel.isMocking.collectAsState()
+            val selectedPoi by viewModel.selectedPoi.collectAsState()
+            val updateInfo by viewModel.updateInfo.collectAsState()
+            val searchResults by viewModel.searchResults.collectAsState()
+            val runMode by viewModel.runMode.collectAsState()
+            val targetLocation by viewModel.targetLocation.collectAsState()
+            val mapType by viewModel.mapType.collectAsState()
+            val currentCity by viewModel.currentCity.collectAsState()
 
+            locationTheme {
                 MainScreen(
                     mapView = mMapView,
                     isMocking = isMocking,
+                    targetLocation = targetLocation,
+                    mapType = mapType,
+                    currentCity = currentCity,
+                    runMode = runMode,
+                    onRunModeChange = { viewModel.setRunMode(it) },
                     onToggleMock = { doGoLocation() },
                     onZoomIn = { mBaiduMap?.setMapStatus(MapStatusUpdateFactory.zoomIn()) },
                     onZoomOut = { mBaiduMap?.setMapStatus(MapStatusUpdateFactory.zoomOut()) },
@@ -228,15 +237,13 @@ class MainActivity : BaseActivity(), SensorEventListener {
                         mBaiduMap?.animateMapStatus(u)
                     },
                     onLocationInputConfirm = { lat, lng, isBd09 ->
-                        val target = if (isBd09) {
-                            LatLng(lat, lng)
-                        } else {
-                            val wgs84 = MapUtils.wgs2bd09(lng, lat)
+                        val target = if (isBd09) LatLng(lat, lng) else {
+                            val wgs84 = MapUtils.wgs2bd(lng, lat)
                             LatLng(wgs84[1], wgs84[0])
                         }
                         mMarkLatLngMap = target
                         viewModel.setTargetLocation(target)
-
+                        
                         mBaiduMap?.clear()
                         val option = MarkerOptions()
                             .position(target)
@@ -246,7 +253,6 @@ class MainActivity : BaseActivity(), SensorEventListener {
                         mBaiduMap?.addOverlay(option)
                         mBaiduMap?.animateMapStatus(MapStatusUpdateFactory.newLatLng(target))
                         
-                        // Select POI manually
                         viewModel.selectPoi(
                              MainViewModel.PoiInfo(
                                  name = "Custom Location",

@@ -49,8 +49,13 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
     private val _settings = MutableStateFlow(com.kail.location.models.SimulationSettings())
     val settings: StateFlow<com.kail.location.models.SimulationSettings> = _settings.asStateFlow()
+
+    private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
+    private val _runMode = MutableStateFlow("noroot")
+    val runMode: StateFlow<String> = _runMode.asStateFlow()
     
     init {
+        _runMode.value = sharedPreferences.getString("setting_run_mode", "noroot") ?: "noroot"
         loadSettings()
         loadRoutes()
     }
@@ -88,6 +93,11 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
     fun setSimulating(value: Boolean) {
         _isSimulating.value = value
+    }
+
+    fun setRunMode(mode: String) {
+        _runMode.value = mode
+        sharedPreferences.edit().putString("setting_run_mode", mode).apply()
     }
 
     fun selectRoute(id: String?) {

@@ -73,7 +73,9 @@ fun RoutePlanScreen(
     currentLatLng: LatLng? = null,
     onNavigate: (Int) -> Unit,
     appVersion: String,
-    viewModel: RouteSimulationViewModel
+    viewModel: RouteSimulationViewModel,
+    runMode: String,
+    onRunModeChange: (String) -> Unit
 ) {
     var startPoint by remember { mutableStateOf("") }
     var endPoint by remember { mutableStateOf("") }
@@ -98,6 +100,57 @@ fun RoutePlanScreen(
     val scope = rememberCoroutineScope()
     var showMapTypeDialog by remember { mutableStateOf(false) }
     var showLocationInputDialog by remember { mutableStateOf(false) }
+    var showRunModeDialog by remember { mutableStateOf(false) }
+
+    if (showRunModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showRunModeDialog = false },
+            title = { Text(stringResource(R.string.run_mode_dialog_title)) },
+            text = {
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onRunModeChange("root")
+                                showRunModeDialog = false
+                            }
+                            .padding(16.dp)
+                    ) {
+                        RadioButton(
+                            selected = runMode == "root",
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.run_mode_root))
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onRunModeChange("noroot")
+                                showRunModeDialog = false
+                            }
+                            .padding(16.dp)
+                    ) {
+                        RadioButton(
+                            selected = runMode == "noroot",
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.run_mode_noroot))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showRunModeDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
+    }
 
     LaunchedEffect(mapView) {
         try {
@@ -253,7 +306,7 @@ fun RoutePlanScreen(
                 val target = if (isBd09) {
                     LatLng(lat, lng)
                 } else {
-                    val wgs84 = MapUtils.wgs2bd09(lng, lat)
+                    val wgs84 = MapUtils.wgs2bd(lng, lat)
                     LatLng(wgs84[1], wgs84[0])
                 }
                 mapView?.map?.animateMapStatus(MapStatusUpdateFactory.newLatLng(target))
@@ -292,6 +345,12 @@ fun RoutePlanScreen(
                     icon = { Icon(painterResource(R.drawable.ic_menu_settings), contentDescription = null) },
                     selected = false,
                     onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_settings) } }
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.nav_menu_run_mode)) },
+                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) }, // Reusing dev icon
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close(); showRunModeDialog = true } }
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.nav_menu_dev)) },

@@ -3,6 +3,7 @@ package com.kail.location.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.preference.PreferenceManager
 import com.baidu.mapapi.model.LatLng
 import com.kail.location.views.main.MainActivity
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -88,25 +89,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         const val POI_ADDRESS = "POI_ADDRESS"
         const val POI_LONGITUDE = "POI_LONGITUDE"
         const val POI_LATITUDE = "POI_LATITUDE"
+        const val KEY_RUN_MODE = "setting_run_mode"
+        const val RUN_MODE_ROOT = "root"
+        const val RUN_MODE_NOROOT = "noroot"
     }
 
+    private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
+
+    private val _runMode = MutableStateFlow(RUN_MODE_NOROOT)
+    val runMode: StateFlow<String> = _runMode.asStateFlow()
+
     init {
+        _runMode.value = sharedPreferences.getString(KEY_RUN_MODE, RUN_MODE_NOROOT) ?: RUN_MODE_NOROOT
         suggestionSearch.setOnGetSuggestionResultListener { suggestionResult ->
-            if (suggestionResult?.allSuggestions == null) {
+            if (suggestionResult == null || suggestionResult.allSuggestions == null) {
                 _searchResults.value = emptyList()
-            } else {
-                val data: MutableList<Map<String, Any>> = java.util.ArrayList()
-                for (info in suggestionResult.allSuggestions) {
-                    if (info.pt == null) continue
-                    val poiItem: MutableMap<String, Any> = java.util.HashMap()
-                    poiItem[POI_NAME] = info.key
-                    poiItem[POI_ADDRESS] = (info.city ?: "") + " " + (info.district ?: "")
-                    poiItem[POI_LONGITUDE] = "" + info.pt.longitude
-                    poiItem[POI_LATITUDE] = "" + info.pt.latitude
-                    data.add(poiItem)
-                }
-                _searchResults.value = data
+                return@setOnGetSuggestionResultListener
             }
+            val results = suggestionResult.allSuggestions.mapNotNull { info ->
+                if (info.pt == null) return@mapNotNull null
+                mapOf(
+                    POI_NAME to (info.key ?: ""),
+                    POI_ADDRESS to ("${info.city}${info.district}"),
+                    POI_LONGITUDE to info.pt.longitude,
+                    POI_LATITUDE to info.pt.latitude
+                )
+            }
+            _searchResults.value = results
         }
     }
 
@@ -197,5 +206,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun setUpdateInfo(info: UpdateInfo?) {
         _updateInfo.value = info
+    }
+
+    fun setRunMode(mode: String) {
+        _runMode.value = mode
+        sharedPreferences.edit().putString(KEY_RUN_MODE, mode).apply()
     }
 }
