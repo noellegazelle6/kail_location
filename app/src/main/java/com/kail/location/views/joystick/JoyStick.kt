@@ -154,7 +154,7 @@ class JoyStick @JvmOverloads constructor(
      * @param alt Altitude.
      */
     fun setCurrentPosition(lng: Double, lat: Double, alt: Double) {
-        val lngLat = MapUtils.wgs2bd09(lng, lat)
+        val lngLat = MapUtils.wgs2bd(lng, lat)
         mCurMapLngLat = LatLng(lngLat[1], lngLat[0])
         mAltitude = alt
 

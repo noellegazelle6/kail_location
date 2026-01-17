@@ -17,6 +17,7 @@ import android.location.provider.ProviderProperties
 import android.os.*
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.elvishew.xlog.XLog
 import com.kail.location.views.main.MainActivity
 import com.kail.location.R
@@ -56,6 +57,11 @@ class ServiceGo : Service() {
     private var mRouteLoop = false
     private var mSegmentProgressMeters = 0.0
 
+    private var mRunMode: String = "noroot"
+    private var portalRandomKey: String? = null
+    private var portalStarted: Boolean = false
+    private var locationLoopStarted: Boolean = false
+
     companion object {
         const val DEFAULT_LAT = 36.667662
         const val DEFAULT_LNG = 117.027707
@@ -76,9 +82,12 @@ class ServiceGo : Service() {
         const val EXTRA_JOYSTICK_ENABLED = "EXTRA_JOYSTICK_ENABLED"
         const val EXTRA_ROUTE_SPEED = "EXTRA_ROUTE_SPEED"
         const val EXTRA_COORD_TYPE = "EXTRA_COORD_TYPE"
+        const val EXTRA_RUN_MODE = "EXTRA_RUN_MODE"
         const val COORD_WGS84 = "WGS84"
         const val COORD_BD09 = "BD09"
         const val COORD_GCJ02 = "GCJ02"
+
+        private const val PORTAL_PROVIDER = "portal"
     }
 
     /**
@@ -101,6 +110,7 @@ class ServiceGo : Service() {
         
         // 1. Init Notification & Foreground Service
         try {
+            XLog.i("ServiceGo: 1. initNotification")
             // Must call startForeground immediately
             initNotification()
         } catch (e: Throwable) {
@@ -110,19 +120,15 @@ class ServiceGo : Service() {
 
         // 2. Init Location Manager & Providers
         try {
+            XLog.i("ServiceGo: 2. init LocationManager")
             mLocManager = this.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-            
-            removeTestProviderNetwork()
-            addTestProviderNetwork()
-
-            removeTestProviderGPS()
-            addTestProviderGPS()
         } catch (e: Throwable) {
             XLog.e("ServiceGo: Error in LocationManager init", e)
         }
 
         // 3. Init Location Handler
         try {
+            XLog.i("ServiceGo: 3. initGoLocation")
             initGoLocation()
         } catch (e: Throwable) {
             XLog.e("ServiceGo: Error in initGoLocation", e)
@@ -130,6 +136,7 @@ class ServiceGo : Service() {
             
         // 4. Init JoyStick
         try {
+            XLog.i("ServiceGo: 4. initJoyStick")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
                 GoUtils.DisplayToast(applicationContext, "请授予悬浮窗权限")
             }
@@ -170,6 +177,7 @@ class ServiceGo : Service() {
         }
 
         if (intent != null) {
+            mRunMode = intent.getStringExtra(EXTRA_RUN_MODE) ?: "noroot"
             val coordType = intent.getStringExtra(EXTRA_COORD_TYPE) ?: COORD_BD09
             mCurLng = intent.getDoubleExtra(MainActivity.LNG_MSG_ID, DEFAULT_LNG)
             mCurLat = intent.getDoubleExtra(MainActivity.LAT_MSG_ID, DEFAULT_LAT)
@@ -216,7 +224,17 @@ class ServiceGo : Service() {
                 mSegmentProgressMeters = 0.0
             }
             
-            XLog.i("ServiceGo: onStartCommand received lat=$mCurLat, lng=$mCurLng")
+            XLog.i("ServiceGo: onStartCommand received lat=$mCurLat, lng=$mCurLng, runMode=$mRunMode")
+
+            if (mRunMode != "root") {
+                ensureNorootProviders()
+            } else {
+                portalInitIfNeeded()
+                portalStartIfNeeded()
+                portalUpdateOnce()
+            }
+
+            startLocationLoop()
 
             if (this::mJoyStick.isInitialized) {
                 try {
@@ -258,8 +276,12 @@ class ServiceGo : Service() {
                 mJoyStick.destroy()
             }
 
-            removeTestProviderNetwork()
-            removeTestProviderGPS()
+            if (mRunMode != "root") {
+                removeTestProviderNetwork()
+                removeTestProviderGPS()
+            } else {
+                portalStopSafe()
+            }
 
             mActReceiver?.let { unregisterReceiver(it) }
             mActReceiver = null
@@ -288,11 +310,12 @@ class ServiceGo : Service() {
             val filter = IntentFilter()
             filter.addAction(SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW)
             filter.addAction(SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(mActReceiver, filter, RECEIVER_NOT_EXPORTED)
-            } else {
-                registerReceiver(mActReceiver, filter)
-            }
+            ContextCompat.registerReceiver(
+                this,
+                mActReceiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
         }
 
         val mChannel = NotificationChannel(
@@ -390,8 +413,12 @@ class ServiceGo : Service() {
                         if (mRoutePoints.size >= 2) {
                             advanceAlongRoute(mSpeed * 0.1)
                         }
-                        setLocationNetwork()
-                        setLocationGPS()
+                        if (mRunMode == "root") {
+                            portalTick()
+                        } else {
+                            setLocationNetwork()
+                            setLocationGPS()
+                        }
 
                         sendEmptyMessage(HANDLER_MSG_ID)
                     }
@@ -407,8 +434,116 @@ class ServiceGo : Service() {
                 }
             }
         }
+    }
 
+    private fun startLocationLoop() {
+        if (locationLoopStarted) return
+        if (!this::mLocHandler.isInitialized) return
+        isStop = false
+        locationLoopStarted = true
         mLocHandler.sendEmptyMessage(HANDLER_MSG_ID)
+    }
+
+    private fun ensureNorootProviders() {
+        try {
+            removeTestProviderNetwork()
+            addTestProviderNetwork()
+            removeTestProviderGPS()
+            addTestProviderGPS()
+        } catch (e: Throwable) {
+            XLog.e("ServiceGo: Error ensuring providers", e)
+        }
+    }
+
+    private fun portalInitIfNeeded(): Boolean {
+        if (portalRandomKey != null) return true
+        val rely = Bundle()
+        XLog.i("ServiceGo: sending exchange_key...")
+        val ok = kotlin.runCatching {
+            mLocManager.sendExtraCommand(PORTAL_PROVIDER, "exchange_key", rely)
+        }.onFailure {
+            XLog.e("ServiceGo: sendExtraCommand exception", it)
+        }.getOrDefault(false)
+        if (!ok) {
+            XLog.e("ServiceGo: exchange_key failed (sendExtraCommand returned false)")
+            return false
+        }
+        val key = rely.getString("key")
+        if (key.isNullOrBlank()) {
+            XLog.e("ServiceGo: exchange_key failed (key is null/blank)")
+            return false
+        }
+        XLog.i("ServiceGo: exchange_key success, key=$key")
+        portalRandomKey = key
+        return true
+    }
+
+    private fun portalSend(commandId: String, block: Bundle.() -> Unit = {}): Boolean {
+        val key = portalRandomKey ?: return false
+        val rely = Bundle()
+        rely.putString("command_id", commandId)
+        rely.block()
+        return kotlin.runCatching {
+            mLocManager.sendExtraCommand(PORTAL_PROVIDER, key, rely)
+        }.onFailure {
+             XLog.e("ServiceGo: portalSend exception command=$commandId", it)
+        }.getOrDefault(false)
+    }
+
+    private fun portalStartIfNeeded(): Boolean {
+        if (portalStarted) return true
+        if (!portalInitIfNeeded()) {
+            XLog.e("ServiceGo: portalStartIfNeeded failed because init failed")
+            return false
+        }
+        val ok = portalSend("start") {
+            putDouble("speed", mSpeed)
+            putDouble("altitude", mCurAlt)
+            putFloat("accuracy", 1.0f)
+        }
+        if (ok) {
+            XLog.i("ServiceGo: portal start command success")
+            portalStarted = true
+        } else {
+            XLog.e("ServiceGo: portal start command failed")
+        }
+        return ok
+    }
+
+    private fun portalUpdateOnce() {
+        if (!portalStartIfNeeded()) {
+            XLog.e("ServiceGo: portalUpdateOnce failed because start failed")
+            return
+        }
+        portalSend("set_altitude") { putDouble("altitude", mCurAlt) }
+        portalSend("set_speed") { putFloat("speed", mSpeed.toFloat()) }
+        portalSend("set_bearing") { putDouble("bearing", mCurBea.toDouble()) }
+        portalSend("update_location") {
+            putDouble("lat", mCurLat)
+            putDouble("lon", mCurLng)
+            putString("mode", "=")
+        }
+        portalSend("broadcast_location")
+    }
+
+    private fun portalTick() {
+        if (!portalStartIfNeeded()) return
+        portalSend("set_speed") { putFloat("speed", mSpeed.toFloat()) }
+        portalSend("set_bearing") { putDouble("bearing", mCurBea.toDouble()) }
+        portalSend("update_location") {
+            putDouble("lat", mCurLat)
+            putDouble("lon", mCurLng)
+            putString("mode", "=")
+        }
+        portalSend("broadcast_location")
+    }
+
+    private fun portalStopSafe() {
+        kotlin.runCatching {
+            portalSend("stop")
+        }
+        portalStarted = false
+        portalRandomKey = null
     }
 
     private fun advanceAlongRoute(distanceMeters: Double) {

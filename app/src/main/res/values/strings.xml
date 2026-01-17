@@ -129,6 +129,11 @@
     <string name="nav_app_tips">仅供学习使用，否则后果自负!</string>
     <string name="nav_menu_sponsor">赞助作者</string>
     <string name="nav_menu_github">开源仓库</string>
+    <string name="nav_menu_run_mode">运行模式</string>
+    <string name="run_mode_dialog_title">选择运行模式</string>
+    <string name="run_mode_root">Root 模式</string>
+    <string name="run_mode_noroot">NoRoot 模式</string>
+    <string name="run_mode_changed">运行模式已切换为 %s</string>
     <string name="sponsor_title">赞助作者</string>
     <string name="sponsor_tron_note">仅支持 TRON 资产收款</string>
 

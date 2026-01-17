@@ -69,6 +69,8 @@ class RouteSimulationActivity : BaseActivity() {
         setContent {
             locationTheme {
                 var currentScreen by remember { mutableStateOf(Screen.LIST) }
+                val runMode by viewModel.runMode.collectAsState()
+                
                 val onNavigate: (Int) -> Unit = { id ->
                     when (id) {
                         R.id.nav_location_simulation -> {
@@ -121,22 +123,14 @@ class RouteSimulationActivity : BaseActivity() {
                     Screen.LIST -> {
                         RouteSimulationScreen(
                             viewModel = viewModel,
+                            runMode = runMode,
+                            onRunModeChange = { viewModel.setRunMode(it) },
                             onNavigate = onNavigate,
                             onAddRouteClick = { currentScreen = Screen.PLAN },
                             appVersion = version,
                             onStartSimulation = { settings ->
                                 try {
-                                    val points = viewModel.getSelectedRoutePoints()
-                                    if (points != null && points.size >= 4) {
-                                        val intent = Intent(this@RouteSimulationActivity, ServiceGo::class.java)
-                                        intent.putExtra(ServiceGo.EXTRA_ROUTE_POINTS, points)
-                                        intent.putExtra(ServiceGo.EXTRA_ROUTE_LOOP, viewModel.settings.value.isLoop)
-                                        intent.putExtra(ServiceGo.EXTRA_JOYSTICK_ENABLED, false)
-                                        intent.putExtra(ServiceGo.EXTRA_ROUTE_SPEED, viewModel.settings.value.speed)
-                                        intent.putExtra(ServiceGo.EXTRA_COORD_TYPE, ServiceGo.COORD_BD09)
-                                        ContextCompat.startForegroundService(this@RouteSimulationActivity, intent)
-                                        viewModel.setSimulating(true)
-                                    } else {
+                                    if (!viewModel.startSimulation()) {
                                         android.widget.Toast.makeText(this@RouteSimulationActivity, "请先添加并保存路线", android.widget.Toast.LENGTH_SHORT).show()
                                     }
                                 } catch (e: Exception) {
@@ -144,8 +138,7 @@ class RouteSimulationActivity : BaseActivity() {
                                 }
                             },
                             onStopSimulation = {
-                                stopService(Intent(this@RouteSimulationActivity, ServiceGo::class.java))
-                                viewModel.setSimulating(false)
+                                viewModel.stopSimulation()
                             }
                         )
                     }
@@ -175,7 +168,9 @@ class RouteSimulationActivity : BaseActivity() {
                             },
                             onNavigate = onNavigate,
                             appVersion = version,
-                            viewModel = viewModel
+                            viewModel = viewModel,
+                            runMode = runMode,
+                            onRunModeChange = { viewModel.setRunMode(it) }
                         )
                     }
                 }

@@ -15,6 +15,7 @@ import java.util.ArrayList
 import com.kail.location.models.UpdateInfo
 import com.kail.location.utils.UpdateChecker
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import com.baidu.mapapi.model.LatLng
 import org.json.JSONObject
@@ -22,6 +23,8 @@ import com.baidu.mapapi.search.core.SearchResult
 import com.baidu.mapapi.search.geocode.GeoCoder
 import com.baidu.mapapi.search.geocode.OnGetGeoCoderResultListener
 import com.baidu.mapapi.search.geocode.ReverseGeoCodeOption
+import androidx.core.content.ContextCompat
+import com.kail.location.service.ServiceGo
 
 /**
  * 路线模拟页面的 ViewModel。
@@ -49,8 +52,13 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
     private val _settings = MutableStateFlow(com.kail.location.models.SimulationSettings())
     val settings: StateFlow<com.kail.location.models.SimulationSettings> = _settings.asStateFlow()
+
+    private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
+    private val _runMode = MutableStateFlow("noroot")
+    val runMode: StateFlow<String> = _runMode.asStateFlow()
     
     init {
+        _runMode.value = sharedPreferences.getString("setting_run_mode", "noroot") ?: "noroot"
         loadSettings()
         loadRoutes()
     }
@@ -88,6 +96,34 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
     fun setSimulating(value: Boolean) {
         _isSimulating.value = value
+    }
+
+    fun startSimulation(): Boolean {
+        val app = getApplication<Application>()
+        val points = getSelectedRoutePoints() ?: return false
+        if (points.size < 4) return false
+
+        val intent = Intent(app, ServiceGo::class.java)
+        intent.putExtra(ServiceGo.EXTRA_ROUTE_POINTS, points)
+        intent.putExtra(ServiceGo.EXTRA_ROUTE_LOOP, settings.value.isLoop)
+        intent.putExtra(ServiceGo.EXTRA_JOYSTICK_ENABLED, false)
+        intent.putExtra(ServiceGo.EXTRA_ROUTE_SPEED, settings.value.speed)
+        intent.putExtra(ServiceGo.EXTRA_COORD_TYPE, ServiceGo.COORD_BD09)
+        intent.putExtra(ServiceGo.EXTRA_RUN_MODE, runMode.value)
+        ContextCompat.startForegroundService(app, intent)
+        _isSimulating.value = true
+        return true
+    }
+
+    fun stopSimulation() {
+        val app = getApplication<Application>()
+        app.stopService(Intent(app, ServiceGo::class.java))
+        _isSimulating.value = false
+    }
+
+    fun setRunMode(mode: String) {
+        _runMode.value = mode
+        sharedPreferences.edit().putString("setting_run_mode", mode).apply()
     }
 
     fun selectRoute(id: String?) {

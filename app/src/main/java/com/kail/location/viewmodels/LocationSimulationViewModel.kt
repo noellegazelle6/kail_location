@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import com.kail.location.models.UpdateInfo
 import com.kail.location.utils.UpdateChecker
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import kotlinx.coroutines.flow.update
 import com.kail.location.models.HistoryRecord
@@ -18,6 +19,9 @@ import android.database.sqlite.SQLiteDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewModelScope
+import androidx.core.content.ContextCompat
+import com.kail.location.service.ServiceGo
+import com.kail.location.views.main.MainActivity
 
 /**
  * 位置模拟页面的 ViewModel。
@@ -69,7 +73,12 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
     private val _selectedRecordId = MutableStateFlow<Int?>(null)
     val selectedRecordId: StateFlow<Int?> = _selectedRecordId.asStateFlow()
 
+    private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
+    private val _runMode = MutableStateFlow("noroot")
+    val runMode: StateFlow<String> = _runMode.asStateFlow()
+
     init {
+        _runMode.value = sharedPreferences.getString("setting_run_mode", "noroot") ?: "noroot"
         try {
             db = dbHelper.writableDatabase
             loadRecords()
@@ -80,8 +89,23 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
      * 切换模拟状态。
      */
     fun toggleSimulation() {
-        _isSimulating.value = !_isSimulating.value
-        // Logic to start/stop service would go here or be observed by Activity
+        val app = getApplication<Application>()
+        val next = !_isSimulating.value
+        if (next) {
+            val info = locationInfo.value
+            val intent = Intent(app, ServiceGo::class.java)
+            intent.putExtra(MainActivity.LNG_MSG_ID, info.longitude)
+            intent.putExtra(MainActivity.LAT_MSG_ID, info.latitude)
+            intent.putExtra(MainActivity.ALT_MSG_ID, 55.0)
+            intent.putExtra(ServiceGo.EXTRA_JOYSTICK_ENABLED, isJoystickEnabled.value)
+            intent.putExtra(ServiceGo.EXTRA_COORD_TYPE, ServiceGo.COORD_BD09)
+            intent.putExtra(ServiceGo.EXTRA_RUN_MODE, runMode.value)
+            ContextCompat.startForegroundService(app, intent)
+            _isSimulating.value = true
+        } else {
+            app.stopService(Intent(app, ServiceGo::class.java))
+            _isSimulating.value = false
+        }
     }
 
     /**
@@ -91,6 +115,16 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
      */
     fun setJoystickEnabled(enabled: Boolean) {
         _isJoystickEnabled.value = enabled
+        if (_isSimulating.value) {
+            val app = getApplication<Application>()
+            val action = if (enabled) ServiceGo.SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW else ServiceGo.SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE
+            app.sendBroadcast(Intent(action))
+        }
+    }
+
+    fun setRunMode(mode: String) {
+        _runMode.value = mode
+        sharedPreferences.edit().putString("setting_run_mode", mode).apply()
     }
 
     /**

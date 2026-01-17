@@ -18,4 +18,16 @@
         <item>2</item>
     </string-array>
 
+    <string-array name="xposed_scope">
+        <item>android</item>
+        <item>com.android.phone</item>
+        <item>com.android.location.fused</item>
+        <item>com.google.android.gms</item>
+        <item>com.xiaomi.location.fused</item>
+        <item>com.oplus.location</item>
+        <item>com.vivo.location</item>
+        <item>com.qualcomm.location</item>
+        <item>com.tencent.android.location</item>
+    </string-array>
+
 </resources>

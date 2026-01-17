@@ -10,4 +10,5 @@
     <item name="nav_github" type="id"/>
     <item name="nav_sponsor" type="id"/>
     <item name="nav_source_code" type="id"/>
+    <item name="nav_run_mode" type="id"/>
 </resources>

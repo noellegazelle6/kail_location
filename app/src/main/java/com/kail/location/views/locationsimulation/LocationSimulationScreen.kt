@@ -56,36 +56,77 @@ import androidx.compose.material.icons.filled.Delete
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationSimulationScreen(
-    viewModel: LocationSimulationViewModel,
+    locationInfo: LocationSimulationViewModel.LocationInfo,
+    isSimulating: Boolean,
+    isJoystickEnabled: Boolean,
+    historyRecords: List<HistoryRecord>,
+    selectedRecordId: Int?,
+    onToggleSimulation: () -> Unit,
+    onJoystickToggle: (Boolean) -> Unit,
+    onRecordSelect: (HistoryRecord) -> Unit,
+    onRecordDelete: (Int) -> Unit,
+    onRecordRename: (Int, String) -> Unit,
+    runMode: String,
+    onRunModeChange: (String) -> Unit,
     onNavigate: (Int) -> Unit,
     onAddLocation: () -> Unit,
-    appVersion: String
+    appVersion: String,
+    onCheckUpdate: () -> Unit
 ) {
     val context = LocalContext.current
-    val locationInfo =
-        viewModel.locationInfo.collectAsState(initial = LocationSimulationViewModel.LocationInfo()).value
-    val isSimulating = viewModel.isSimulating.collectAsState(initial = false).value
-    val isJoystickEnabled = viewModel.isJoystickEnabled.collectAsState(initial = false).value
-    val updateInfo by viewModel.updateInfo.collectAsState()
-    val historyRecords by viewModel.historyRecords.collectAsState()
     var renameTarget by remember { mutableStateOf<HistoryRecord?>(null) }
     var renameText by remember { mutableStateOf("") }
+    var showRunModeDialog by remember { mutableStateOf(false) }
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-
-    if (updateInfo != null) {
-        UpdateDialog(
-            info = updateInfo!!,
-            onDismiss = { viewModel.dismissUpdateDialog() },
-            onConfirm = {
-                try {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo!!.downloadUrl))
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    e.printStackTrace()
+    
+    if (showRunModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showRunModeDialog = false },
+            title = { Text(stringResource(R.string.run_mode_dialog_title)) },
+            text = {
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onRunModeChange("root")
+                                showRunModeDialog = false
+                            }
+                            .padding(16.dp)
+                    ) {
+                        RadioButton(
+                            selected = runMode == "root",
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.run_mode_root))
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onRunModeChange("noroot")
+                                showRunModeDialog = false
+                            }
+                            .padding(16.dp)
+                    ) {
+                        RadioButton(
+                            selected = runMode == "noroot",
+                            onClick = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.run_mode_noroot))
+                    }
                 }
-                viewModel.dismissUpdateDialog()
+            },
+            confirmButton = {
+                TextButton(onClick = { showRunModeDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
             }
         )
     }
@@ -99,12 +140,7 @@ fun LocationSimulationScreen(
                 HorizontalDivider()
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.nav_menu_location_simulation)) },
-                    icon = {
-                        Icon(
-                            painterResource(R.drawable.ic_position),
-                            contentDescription = null
-                        )
-                    },
+                    icon = { Icon(painterResource(R.drawable.ic_position), contentDescription = null) },
                     selected = true,
                     onClick = { scope.launch { drawerState.close() } }
                 )
@@ -114,7 +150,7 @@ fun LocationSimulationScreen(
                     selected = false,
                     onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_route_simulation) } }
                 )
-
+                
                 Text(
                     text = stringResource(R.string.nav_menu_settings),
                     modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
@@ -122,23 +158,19 @@ fun LocationSimulationScreen(
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.nav_menu_settings)) },
-                    icon = {
-                        Icon(
-                            painterResource(R.drawable.ic_menu_settings),
-                            contentDescription = null
-                        )
-                    },
+                    icon = { Icon(painterResource(R.drawable.ic_menu_settings), contentDescription = null) },
                     selected = false,
                     onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_settings) } }
                 )
                 NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.nav_menu_run_mode)) },
+                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) }, // Reusing dev icon
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close(); showRunModeDialog = true } }
+                )
+                NavigationDrawerItem(
                     label = { Text(stringResource(R.string.nav_menu_dev)) },
-                    icon = {
-                        Icon(
-                            painterResource(R.drawable.ic_menu_dev),
-                            contentDescription = null
-                        )
-                    },
+                    icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
                     selected = false,
                     onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_dev) } }
                 )
@@ -157,7 +189,7 @@ fun LocationSimulationScreen(
                         )
                     },
                     selected = false,
-                    onClick = { scope.launch { drawerState.close(); viewModel.checkUpdate(context) } }
+                    onClick = { scope.launch { drawerState.close(); onCheckUpdate() } }
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.nav_menu_feedback)) },
@@ -283,7 +315,7 @@ fun LocationSimulationScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Button(
-                                    onClick = { viewModel.toggleSimulation() },
+                                    onClick = onToggleSimulation,
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = if (isSimulating) Color.Red else MaterialTheme.colorScheme.primary
                                     ),
@@ -308,7 +340,7 @@ fun LocationSimulationScreen(
                                 // Placeholder icon
                                 Switch(
                                     checked = isJoystickEnabled,
-                                    onCheckedChange = { viewModel.setJoystickEnabled(it) },
+                                    onCheckedChange = onJoystickToggle,
                                     modifier = Modifier.scale(0.8f)
                                 )
                             }
@@ -382,7 +414,7 @@ fun LocationSimulationScreen(
                                 colors = CardDefaults.cardColors(containerColor = Color.White),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                 shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth().clickable { viewModel.selectRecord(record) }
+                                modifier = Modifier.fillMaxWidth().clickable { onRecordSelect(record) }
                             ) {
                                 Row(
                                     modifier = Modifier.padding(16.dp),
@@ -397,7 +429,7 @@ fun LocationSimulationScreen(
                                         IconButton(onClick = { renameTarget = record; renameText = record.name }) {
                                             Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
                                         }
-                                        IconButton(onClick = { viewModel.deleteRecord(record.id) }) {
+                                        IconButton(onClick = { onRecordDelete(record.id) }) {
                                             Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
                                         }
                                     }
@@ -429,7 +461,7 @@ fun LocationSimulationScreen(
                 OutlinedTextField(value = renameText, onValueChange = { renameText = it })
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.renameRecord(renameTarget!!.id, renameText); renameTarget = null }) { Text("确定") }
+                TextButton(onClick = { onRecordRename(renameTarget!!.id, renameText); renameTarget = null }) { Text("确定") }
             },
             dismissButton = {
                 TextButton(onClick = { renameTarget = null }) { Text("取消") }

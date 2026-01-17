@@ -28,6 +28,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import com.baidu.location.BDAbstractLocationListener
 import com.baidu.location.BDLocation
@@ -210,16 +211,31 @@ class MainActivity : BaseActivity(), SensorEventListener {
         }
 
         setContent {
-            locationTheme {
-                val isMocking by viewModel.isMocking.collectAsState()
-                val selectedPoi by viewModel.selectedPoi.collectAsState()
-                val updateInfo by viewModel.updateInfo.collectAsState()
-                val searchResults by viewModel.searchResults.collectAsState()
+            val isMocking by viewModel.isMocking.collectAsState()
+            val selectedPoi by viewModel.selectedPoi.collectAsState()
+            val updateInfo by viewModel.updateInfo.collectAsState()
+            val searchResults by viewModel.searchResults.collectAsState()
+            val runMode by viewModel.runMode.collectAsState()
+            val targetLocation by viewModel.targetLocation.collectAsState()
+            val mapType by viewModel.mapType.collectAsState()
+            val currentCity by viewModel.currentCity.collectAsState()
 
+            locationTheme {
                 MainScreen(
                     mapView = mMapView,
                     isMocking = isMocking,
-                    onToggleMock = { doGoLocation() },
+                    targetLocation = targetLocation,
+                    mapType = mapType,
+                    currentCity = currentCity,
+                    runMode = runMode,
+                    onRunModeChange = { viewModel.setRunMode(it) },
+                    onToggleMock = {
+                        if (runMode == MainViewModel.RUN_MODE_ROOT) {
+                            viewModel.toggleMock()
+                        } else {
+                            doGoLocation()
+                        }
+                    },
                     onZoomIn = { mBaiduMap?.setMapStatus(MapStatusUpdateFactory.zoomIn()) },
                     onZoomOut = { mBaiduMap?.setMapStatus(MapStatusUpdateFactory.zoomOut()) },
                     onLocate = {
@@ -228,15 +244,13 @@ class MainActivity : BaseActivity(), SensorEventListener {
                         mBaiduMap?.animateMapStatus(u)
                     },
                     onLocationInputConfirm = { lat, lng, isBd09 ->
-                        val target = if (isBd09) {
-                            LatLng(lat, lng)
-                        } else {
-                            val wgs84 = MapUtils.wgs2bd09(lng, lat)
+                        val target = if (isBd09) LatLng(lat, lng) else {
+                            val wgs84 = MapUtils.wgs2bd(lng, lat)
                             LatLng(wgs84[1], wgs84[0])
                         }
                         mMarkLatLngMap = target
                         viewModel.setTargetLocation(target)
-
+                        
                         mBaiduMap?.clear()
                         val option = MarkerOptions()
                             .position(target)
@@ -246,7 +260,6 @@ class MainActivity : BaseActivity(), SensorEventListener {
                         mBaiduMap?.addOverlay(option)
                         mBaiduMap?.animateMapStatus(MapStatusUpdateFactory.newLatLng(target))
                         
-                        // Select POI manually
                         viewModel.selectPoi(
                              MainViewModel.PoiInfo(
                                  name = "Custom Location",
@@ -498,8 +511,8 @@ class MainActivity : BaseActivity(), SensorEventListener {
             override fun onMapStatusChangeStart(mapStatus: MapStatus, i: Int) {}
             override fun onMapStatusChange(mapStatus: MapStatus) {}
             override fun onMapStatusChangeFinish(mapStatus: MapStatus) {
-                // 移动结束后，更新中心点
                 mMarkLatLngMap = mapStatus.target
+                viewModel.setTargetLocation(mMarkLatLngMap)
             }
         })
 
@@ -508,10 +521,9 @@ class MainActivity : BaseActivity(), SensorEventListener {
             override fun onMapClick(latLng: LatLng) {
                 mBaiduMap?.clear()
 
-                // 定义Maker坐标点
                 mMarkLatLngMap = latLng
+                viewModel.setTargetLocation(mMarkLatLngMap)
 
-                // 构建MarkerOption，用于在地图上添加Marker
                 val option = MarkerOptions()
                     .position(latLng)
                     .icon(mMapIndicator)
@@ -525,6 +537,7 @@ class MainActivity : BaseActivity(), SensorEventListener {
             override fun onMapPoiClick(mapPoi: MapPoi) {
                 mBaiduMap?.clear()
                 mMarkLatLngMap = mapPoi.position
+                viewModel.setTargetLocation(mMarkLatLngMap)
                 mMarkName = mapPoi.name
                 val option = MarkerOptions()
                     .position(mMarkLatLngMap)
@@ -541,6 +554,7 @@ class MainActivity : BaseActivity(), SensorEventListener {
             override fun onMarkerDrag(marker: Marker) {}
             override fun onMarkerDragEnd(marker: Marker) {
                 mMarkLatLngMap = marker.position
+                viewModel.setTargetLocation(mMarkLatLngMap)
             }
             override fun onMarkerDragStart(marker: Marker) {}
         })
@@ -557,6 +571,7 @@ class MainActivity : BaseActivity(), SensorEventListener {
 
                 mBaiduMap?.clear()
                 mMarkLatLngMap = reverseGeoCodeResult.location
+                viewModel.setTargetLocation(mMarkLatLngMap)
                 mMarkName = reverseGeoCodeResult.address
                 val option = MarkerOptions()
                     .position(mMarkLatLngMap)
@@ -630,9 +645,8 @@ class MainActivity : BaseActivity(), SensorEventListener {
                     val ll = LatLng(location.latitude, location.longitude)
                     val u = MapStatusUpdateFactory.newLatLng(ll)
                     mBaiduMap?.animateMapStatus(u)
-
-                    /* 只有第一次定位时才更新 mMarkLatLngMap */
                     mMarkLatLngMap = ll
+                    viewModel.setTargetLocation(mMarkLatLngMap)
                 }
             }
         })
@@ -650,20 +664,23 @@ class MainActivity : BaseActivity(), SensorEventListener {
      */
     private fun doGoLocation() {
         XLog.i("doGoLocation called")
-        if (!GoUtils.isAllowMockLocation(this)) {
-            XLog.i("Mock location permission NOT granted")
-            GoUtils.DisplayToast(this, "请在开发者选项中开启模拟位置权限！")
-            return
-        }
+        val runMode = viewModel.runMode.value
+        if (runMode != MainViewModel.RUN_MODE_ROOT) {
+            if (!GoUtils.isAllowMockLocation(this)) {
+                XLog.i("Mock location permission NOT granted")
+                GoUtils.DisplayToast(this, "请在开发者选项中开启模拟位置权限！")
+                return
+            }
 
-        val lm = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
-        val isGpsEnable = lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
-        if (!isGpsEnable) {
-            XLog.i("GPS NOT enabled")
-            GoUtils.DisplayToast(this, "请打开GPS")
-            val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
-            startActivity(intent)
-            return
+            val lm = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+            val isGpsEnable = lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
+            if (!isGpsEnable) {
+                XLog.i("GPS NOT enabled")
+                GoUtils.DisplayToast(this, "请打开GPS")
+                val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                startActivity(intent)
+                return
+            }
         }
 
         if (isMockServStart) {
@@ -685,7 +702,8 @@ class MainActivity : BaseActivity(), SensorEventListener {
             intent.putExtra(LAT_MSG_ID, mMarkLatLngMap.latitude)
             intent.putExtra(LNG_MSG_ID, mMarkLatLngMap.longitude)
             intent.putExtra(ServiceGo.EXTRA_COORD_TYPE, ServiceGo.COORD_BD09)
-            XLog.i("Putting extras: lat=${mMarkLatLngMap.latitude}, lng=${mMarkLatLngMap.longitude}, type=BD09")
+            intent.putExtra(ServiceGo.EXTRA_RUN_MODE, runMode)
+            XLog.i("Putting extras: lat=${mMarkLatLngMap.latitude}, lng=${mMarkLatLngMap.longitude}, type=BD09, runMode=$runMode")
 
             // 8.0 之后需要 startForegroundService
             if (Build.VERSION.SDK_INT >= 26) {
@@ -745,7 +763,12 @@ class MainActivity : BaseActivity(), SensorEventListener {
                         } catch (e: Exception) {
                             0
                         }
-                        val version_old = GoUtils.getVersionCode(this@MainActivity)
+                        val localVersionName = GoUtils.getVersionName(this@MainActivity)
+                        val version_old = try {
+                            localVersionName.replace(Regex("[^0-9]"), "").toInt()
+                        } catch (e: Exception) {
+                            0
+                        }
 
                         if (version_new > version_old) {
                             runOnUiThread {
@@ -791,18 +814,12 @@ class MainActivity : BaseActivity(), SensorEventListener {
                 }
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(
-                mDownloadBdRcv,
-                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                Context.RECEIVER_EXPORTED
-            )
-        } else {
-            registerReceiver(
-                mDownloadBdRcv,
-                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-            )
-        }
+        ContextCompat.registerReceiver(
+            this,
+            mDownloadBdRcv,
+            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     /**

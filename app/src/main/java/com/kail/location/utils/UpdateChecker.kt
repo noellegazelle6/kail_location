@@ -57,7 +57,12 @@ object UpdateChecker {
                         } catch (e: Exception) {
                             0
                         }
-                        val versionOld = GoUtils.getVersionCode(context)
+                        val localVersionName = GoUtils.getVersionName(context)
+                        val versionOld = try {
+                            localVersionName.replace(Regex("[^0-9]"), "").toInt()
+                        } catch (e: Exception) {
+                            0
+                        }
 
                         if (versionNew > versionOld) {
                             callback(

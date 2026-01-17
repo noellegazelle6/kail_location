@@ -4,6 +4,8 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.kail.location.R
 import com.kail.location.views.base.BaseActivity
 import com.kail.location.viewmodels.LocationSimulationViewModel
@@ -13,13 +15,7 @@ import com.kail.location.views.settings.SettingsActivity
 import android.widget.Toast
 
 import com.kail.location.views.main.MainActivity
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collect
-import com.kail.location.service.ServiceGo
-import androidx.core.content.ContextCompat
+
 
 /**
  * 位置模拟页面的 Activity。
@@ -35,18 +31,30 @@ class LocationSimulationActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        var version = "v1.0.0"
-        try {
-            val pInfo = packageManager.getPackageInfo(packageName, 0)
-            version = "v${pInfo.versionName}"
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
         setContent {
             locationTheme {
+                val locationInfo by viewModel.locationInfo.collectAsState()
+                val isSimulating by viewModel.isSimulating.collectAsState()
+                val isJoystickEnabled by viewModel.isJoystickEnabled.collectAsState()
+                val historyRecords by viewModel.historyRecords.collectAsState()
+                val selectedRecordId by viewModel.selectedRecordId.collectAsState()
+                val runMode by viewModel.runMode.collectAsState()
+
+                val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+
                 LocationSimulationScreen(
-                    viewModel = viewModel,
+                    locationInfo = locationInfo,
+                    isSimulating = isSimulating,
+                    isJoystickEnabled = isJoystickEnabled,
+                    historyRecords = historyRecords,
+                    selectedRecordId = selectedRecordId,
+                    onToggleSimulation = viewModel::toggleSimulation,
+                    onJoystickToggle = viewModel::setJoystickEnabled,
+                    onRecordSelect = viewModel::selectRecord,
+                    onRecordDelete = viewModel::deleteRecord,
+                    onRecordRename = viewModel::renameRecord,
+                    runMode = runMode,
+                    onRunModeChange = { viewModel.setRunMode(it) },
                     onNavigate = { id ->
                         when (id) {
                             R.id.nav_location_simulation -> {
@@ -97,38 +105,11 @@ class LocationSimulationActivity : BaseActivity() {
                     onAddLocation = {
                         startActivity(Intent(this, MainActivity::class.java))
                     },
-                    appVersion = version
+                    appVersion = version,
+                    onCheckUpdate = { viewModel.checkUpdate(this) }
                 )
             }
         }
 
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    viewModel.isSimulating.collect { sim ->
-                        if (sim) {
-                            val info = viewModel.locationInfo.value
-                            val intent = Intent(this@LocationSimulationActivity, ServiceGo::class.java)
-                            intent.putExtra(MainActivity.LNG_MSG_ID, info.longitude)
-                            intent.putExtra(MainActivity.LAT_MSG_ID, info.latitude)
-                            intent.putExtra(MainActivity.ALT_MSG_ID, 55.0)
-                            intent.putExtra(ServiceGo.EXTRA_JOYSTICK_ENABLED, viewModel.isJoystickEnabled.value)
-                            intent.putExtra(ServiceGo.EXTRA_COORD_TYPE, ServiceGo.COORD_BD09)
-                            ContextCompat.startForegroundService(this@LocationSimulationActivity, intent)
-                        } else {
-                            stopService(Intent(this@LocationSimulationActivity, ServiceGo::class.java))
-                        }
-                    }
-                }
-                launch {
-                    viewModel.isJoystickEnabled.collect { enabled ->
-                        if (viewModel.isSimulating.value) {
-                            val action = if (enabled) ServiceGo.SERVICE_GO_NOTE_ACTION_JOYSTICK_SHOW else ServiceGo.SERVICE_GO_NOTE_ACTION_JOYSTICK_HIDE
-                            sendBroadcast(Intent(action))
-                        }
-                    }
-                }
-            }
-        }
     }
 }
