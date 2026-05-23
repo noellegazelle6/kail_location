@@ -77,6 +77,7 @@ class ServiceGoRoot : Service() {
         const val DEFAULT_BEA = 0.0f
 
         private const val HANDLER_MSG_ID = 0
+        private const val DEFAULT_LOCATION_UPDATE_INTERVAL_MS = 200L
         private const val SERVICE_GO_HANDLER_NAME = "ServiceGoRootLocation"
 
         private const val SERVICE_GO_NOTE_ID = 1
@@ -549,7 +550,8 @@ class ServiceGoRoot : Service() {
         mLocHandler = object : Handler(mLocHandlerThread.looper) {
             override fun handleMessage(msg: Message) {
                 try {
-                    Thread.sleep(50)
+                    val intervalMs = currentLocationUpdateIntervalMs()
+                    Thread.sleep(intervalMs)
 
                     if (!isStop) {
                         if (mRoutePoints.size >= 2) {
@@ -558,7 +560,7 @@ class ServiceGoRoot : Service() {
                             } else {
                                 mSpeed
                             }
-                            advanceAlongRoute(speedForStep * 0.05)
+                            advanceAlongRoute(speedForStep * (intervalMs / 1000.0))
                             updateJoystickStatus()
                         }
                     }
@@ -567,18 +569,26 @@ class ServiceGoRoot : Service() {
                         kailTick()
                     }
 
-                    sendEmptyMessage(HANDLER_MSG_ID)
+                    if (!isStop) {
+                        sendEmptyMessage(HANDLER_MSG_ID)
+                    }
                 } catch (e: InterruptedException) {
                     KailLog.e(this@ServiceGoRoot, "ServiceGoRoot", "handleMessage interrupted: ${e.message}")
                     Thread.currentThread().interrupt()
                 } catch (e: Exception) {
                     KailLog.e(this@ServiceGoRoot, "ServiceGoRoot", "handleMessage exception: ${e.message}")
                     if (!isStop) {
-                        sendEmptyMessageDelayed(HANDLER_MSG_ID, 100)
+                        sendEmptyMessageDelayed(HANDLER_MSG_ID, currentLocationUpdateIntervalMs())
                     }
                 }
             }
         }
+    }
+
+    private fun currentLocationUpdateIntervalMs(): Long {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        return (prefs.getString("setting_report_interval", DEFAULT_LOCATION_UPDATE_INTERVAL_MS.toString())?.toLongOrNull()
+            ?: DEFAULT_LOCATION_UPDATE_INTERVAL_MS).coerceAtLeast(0L)
     }
 
     private fun startLocationLoop() {
@@ -808,7 +818,7 @@ class ServiceGoRoot : Service() {
                 putBoolean("loopBroadcastLocation", prefs.getBoolean("setting_loop_broadcast", false))
                 putInt("minSatellites", prefs.getString("setting_min_satellites", "12")?.toIntOrNull() ?: 12)
                 putFloat("accuracy", prefs.getString("setting_accuracy", "25.0")?.toFloatOrNull() ?: 25.0f)
-                putInt("reportIntervalMs", prefs.getString("setting_report_interval", "100")?.toIntOrNull() ?: 100)
+                putInt("reportIntervalMs", prefs.getString("setting_report_interval", "200")?.toIntOrNull() ?: 200)
             }
             KailLog.i(this, "ServiceGoRoot", "pushConfigToXposed succeeded")
         } catch (e: Exception) {

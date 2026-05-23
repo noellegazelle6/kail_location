@@ -370,7 +370,7 @@
     <string name="setting_min_satellites">最少模拟卫星数量</string>
     <string name="setting_min_satellites_summary">仅支持北斗卫星</string>
     <string name="setting_report_interval">上报位置频率 (ms)</string>
-    <string name="setting_report_interval_summary">单位毫秒，默认 100ms</string>
+    <string name="setting_report_interval_summary">单位毫秒，默认 200ms；数值越低，上报越频繁，耗电和负载越高</string>
     <string name="setting_gps_satellite_title">模拟 GPS 卫星信号</string>
     <string name="setting_gps_satellite_summary">伪造北斗卫星数量和信号强度</string>
     <string name="setting_agps_title">启用 AGPS 模块</string>

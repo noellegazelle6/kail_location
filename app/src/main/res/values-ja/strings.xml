@@ -321,7 +321,7 @@
     <string name="setting_min_satellites">最小シミュレート衛星数</string>
     <string name="setting_min_satellites_summary">BeiDou 衛星のみ対応</string>
     <string name="setting_report_interval">報告間隔 (ms)</string>
-    <string name="setting_report_interval_summary">ミリ秒単位、既定は 100ms</string>
+    <string name="setting_report_interval_summary">ミリ秒単位、既定は 200ms。値を小さくすると報告頻度が上がり、消費電力と負荷が増えます</string>
     <string name="setting_gps_satellite_title">GPS 衛星信号をシミュレート</string>
     <string name="setting_gps_satellite_summary">BeiDou 衛星数と信号強度を偽装します</string>
     <string name="setting_agps_title">AGPS モジュールを有効にする</string>

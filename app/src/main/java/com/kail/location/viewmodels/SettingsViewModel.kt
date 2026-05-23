@@ -120,7 +120,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _minSatellites = MutableStateFlow(prefs.getString(KEY_MIN_SATELLITES, "12") ?: "12")
     val minSatellites: StateFlow<String> = _minSatellites.asStateFlow()
 
-    private val _reportInterval = MutableStateFlow(prefs.getString(KEY_REPORT_INTERVAL, "100") ?: "100")
+    private val _reportInterval = MutableStateFlow(prefs.getString(KEY_REPORT_INTERVAL, "200") ?: "200")
     val reportInterval: StateFlow<String> = _reportInterval.asStateFlow()
 
     private val _enableAGPS = MutableStateFlow(prefs.getBoolean(KEY_ENABLE_AGPS, false))
@@ -188,7 +188,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_MOCK_SPEED -> _mockSpeed.value = sharedPreferences.getString(key, "3.05") ?: "3.05"
             KEY_ACCURACY -> _accuracy.value = sharedPreferences.getString(key, "25.0") ?: "25.0"
             KEY_MIN_SATELLITES -> _minSatellites.value = sharedPreferences.getString(key, "12") ?: "12"
-            KEY_REPORT_INTERVAL -> _reportInterval.value = sharedPreferences.getString(key, "100") ?: "100"
+            KEY_REPORT_INTERVAL -> _reportInterval.value = sharedPreferences.getString(key, "200") ?: "200"
             KEY_ENABLE_AGPS -> _enableAGPS.value = sharedPreferences.getBoolean(key, false)
             KEY_ENABLE_NMEA -> _enableNMEA.value = sharedPreferences.getBoolean(key, false)
             KEY_ENABLE_MOCK_WIFI -> _enableMockWifi.value = sharedPreferences.getBoolean(key, false)
@@ -245,7 +245,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             putBoolean("loopBroadcastLocation", _loopBroadcast.value)
             putInt("minSatellites", _minSatellites.value.toIntOrNull() ?: 12)
             putFloat("accuracy", _accuracy.value.toFloatOrNull() ?: 25.0f)
-            putInt("reportIntervalMs", _reportInterval.value.toIntOrNull() ?: 100)
+            putInt("reportIntervalMs", _reportInterval.value.toIntOrNull() ?: 200)
         }
     }
 

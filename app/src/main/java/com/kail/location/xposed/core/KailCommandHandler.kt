@@ -189,7 +189,7 @@ internal object KailCommandHandler {
                     out.getBoolean("loopBroadcastLocation", FakeLoc.loopBroadcastLocation).let { FakeLoc.loopBroadcastLocation = it }
                     out.getInt("minSatellites", FakeLoc.minSatellites).let { FakeLoc.minSatellites = it }
                     out.getFloat("accuracy", FakeLoc.accuracy).let { FakeLoc.accuracy = it }
-                    out.getInt("reportIntervalMs", 100).let {
+                    out.getInt("reportIntervalMs", 200).let {
                         FakeLoc.reportIntervalMs = it
                     }
                     out.putBoolean("ok", true)

@@ -324,7 +324,7 @@
     <string name="setting_min_satellites">最少模擬衛星數量</string>
     <string name="setting_min_satellites_summary">僅支援北斗衛星</string>
     <string name="setting_report_interval">回報間隔 (ms)</string>
-    <string name="setting_report_interval_summary">以毫秒為單位，預設 100ms</string>
+    <string name="setting_report_interval_summary">以毫秒為單位，預設 200ms；數值越低，上報越頻繁，耗電和負載越高</string>
     <string name="setting_gps_satellite_title">模擬 GPS 衛星訊號</string>
     <string name="setting_gps_satellite_summary">偽造北斗衛星數量與訊號強度</string>
     <string name="setting_agps_title">啟用 AGPS 模組</string>

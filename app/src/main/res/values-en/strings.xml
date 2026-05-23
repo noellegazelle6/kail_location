@@ -359,7 +359,7 @@
     <string name="setting_min_satellites">Min Satellite Count</string>
     <string name="setting_min_satellites_summary">BeiDou satellites only</string>
     <string name="setting_report_interval">Report Interval (ms)</string>
-    <string name="setting_report_interval_summary">In milliseconds, default 100ms</string>
+    <string name="setting_report_interval_summary">In milliseconds, default 200ms. Lower values report more often and increase power/CPU usage.</string>
     <string name="setting_gps_satellite_title">Simulate GPS Satellite Signal</string>
     <string name="setting_gps_satellite_summary">Forge BeiDou satellite count and signal strength</string>
     <string name="setting_agps_title">Enable AGPS Module</string>

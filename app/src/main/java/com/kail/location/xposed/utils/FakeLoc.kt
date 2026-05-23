@@ -98,7 +98,7 @@ object FakeLoc {
     /**
      * 位置上报间隔（毫秒），仅用于部分需要控制频率的场景
      */
-    var reportIntervalMs = 100
+    var reportIntervalMs = 200
 
     /**
      * 上一次的位置
