@@ -12,6 +12,7 @@ import com.baidu.mapapi.SDKInitializer
 import androidx.preference.PreferenceManager
 import com.google.android.gms.ads.MobileAds
 import com.google.firebase.FirebaseApp
+import com.kail.location.R
 
 class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
 
@@ -41,6 +42,8 @@ class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
 
     override fun onCreate() {
         super.onCreate()
+
+        PreferenceManager.setDefaultValues(this, R.xml.preferences_main, false)
 
         registerActivityLifecycleCallbacks(this)
         ProcessLifecycleOwner.get().lifecycle.addObserver(LifecycleEventObserver { _, event ->
@@ -93,5 +96,9 @@ class GoApplication : Application(), Application.ActivityLifecycleCallbacks {
         appOpenAdManager.loadAd(activity)
     }
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-    override fun onActivityDestroyed(activity: Activity) {}
+    override fun onActivityDestroyed(activity: Activity) {
+        if (currentActivity === activity) {
+            currentActivity = null
+        }
+    }
 }

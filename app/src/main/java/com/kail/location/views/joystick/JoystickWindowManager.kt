@@ -152,8 +152,13 @@ class JoystickWindowManager(
         lifecycleOwner.onDestroy()
         timer.cancel()
         hide()
+        mapView?.map?.isMyLocationEnabled = false
+        routeMapView?.map?.isMyLocationEnabled = false
         mapView?.onDestroy()
         routeMapView?.onDestroy()
+        rootComposeView.disposeComposition()
+        mapView = null
+        routeMapView = null
     }
 
     fun updateRouteStatus(progress: Float, distance: String, currentLatLng: LatLng?) {

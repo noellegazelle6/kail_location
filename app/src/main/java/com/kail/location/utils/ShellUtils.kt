@@ -5,21 +5,25 @@ import java.io.File
 object ShellUtils {
     fun hasRoot(): Boolean {
         val runtime = Runtime.getRuntime()
+        var process: Process? = null
         try {
-            val process = runtime.exec("su")
+            process = runtime.exec("su")
             process.outputStream.write("exit\n".toByteArray())
             process.outputStream.flush()
             process.waitFor()
             return process.exitValue() == 0
         } catch (e: Exception) {
             return false
+        } finally {
+            process?.destroy()
         }
     }
 
     fun executeCommand(command: String): String {
         val runtime = Runtime.getRuntime()
+        var process: Process? = null
         try {
-            val process = runtime.exec("su")
+            process = runtime.exec("su")
             process.outputStream.write("$command\n".toByteArray())
             process.outputStream.write("exit\n".toByteArray())
             process.outputStream.flush()
@@ -31,13 +35,16 @@ object ShellUtils {
         } catch (e: Exception) {
             e.printStackTrace()
             return ""
+        } finally {
+            process?.destroy()
         }
     }
 
     fun executeCommandToBytes(command: String): ByteArray {
         val runtime = Runtime.getRuntime()
+        var process: Process? = null
         try {
-            val process = runtime.exec("su")
+            process = runtime.exec("su")
             process.outputStream.write("$command\n".toByteArray())
             process.outputStream.write("exit\n".toByteArray())
             process.outputStream.flush()
@@ -49,6 +56,8 @@ object ShellUtils {
         } catch (e: Exception) {
             e.printStackTrace()
             return ByteArray(0)
+        } finally {
+            process?.destroy()
         }
     }
 }

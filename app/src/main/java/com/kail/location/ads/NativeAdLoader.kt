@@ -22,6 +22,7 @@ object NativeAdLoader {
         isLoading = true
         val builder = AdLoader.Builder(context, AD_UNIT_ID)
         builder.forNativeAd { nativeAd ->
+            cachedAd?.destroy()
             cachedAd = nativeAd
             isLoading = false
             onResult(nativeAd)
