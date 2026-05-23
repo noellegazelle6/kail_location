@@ -164,7 +164,7 @@ fun LocationPickerScreen(
                                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                                 }
                             } else {
-                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                IconButton(onClick = { scope.launch { drawerState.animateTo(DrawerValue.Open, androidx.compose.animation.core.tween(durationMillis = 160)) } }) {
                                     Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
                                 }
                             }

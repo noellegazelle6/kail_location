@@ -31,6 +31,13 @@ fun AppDrawer(
     var envMessage by remember { mutableStateOf("") }
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    suspend fun closeDrawerSmooth() {
+        drawerState.animateTo(
+            DrawerValue.Closed,
+            androidx.compose.animation.core.tween(durationMillis = 140)
+        )
+    }
+
     if (showRunModeDialog) {
         AlertDialog(
             onDismissRequest = { showRunModeDialog = false },
@@ -102,26 +109,26 @@ fun AppDrawer(
             label = { Text(stringResource(R.string.nav_menu_location_simulation)) },
             icon = { Icon(painterResource(R.drawable.ic_position), contentDescription = null) },
             selected = currentScreen == "LocationSimulation",
-            onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_location_simulation) } }
+            onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_location_simulation) } }
         )
         NavigationDrawerItem(
             label = { Text(stringResource(R.string.nav_menu_route_simulation)) },
             icon = { Icon(painterResource(R.drawable.ic_move), contentDescription = null) },
             selected = currentScreen == "RouteSimulation",
-            onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_route_simulation) } }
+            onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_route_simulation) } }
         )
         NavigationDrawerItem(
             label = { Text(stringResource(R.string.drawer_nav_sim)) },
             icon = { Icon(Icons.Default.Search, contentDescription = null) },
             selected = currentScreen == "NavigationSimulation",
-            onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_navigation_simulation) } }
+            onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_navigation_simulation) } }
         )
 
         NavigationDrawerItem(
             label = { Text(stringResource(R.string.drawer_nfc_sim)) },
             icon = { Icon(Icons.Default.Settings, contentDescription = null) },
             selected = currentScreen == "NfcSimulation",
-            onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_nfc_simulation) } }
+            onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_nfc_simulation) } }
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -136,21 +143,21 @@ fun AppDrawer(
             label = { Text(stringResource(R.string.nav_menu_settings)) },
             icon = { Icon(painterResource(R.drawable.ic_menu_settings), contentDescription = null) },
             selected = false,
-            onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_settings) } }
+            onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_settings) } }
         )
 
         NavigationDrawerItem(
             label = { Text(stringResource(R.string.drawer_run_mode)) },
             icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
             selected = false,
-            onClick = { scope.launch { drawerState.close(); showRunModeDialog = true } }
+            onClick = { scope.launch { closeDrawerSmooth(); showRunModeDialog = true } }
         )
         
         NavigationDrawerItem(
             label = { Text(stringResource(R.string.nav_menu_dev)) },
             icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
             selected = false,
-            onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_dev) } }
+            onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_dev) } }
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -164,19 +171,19 @@ fun AppDrawer(
             label = { Text(stringResource(R.string.nav_menu_contact)) },
             icon = { Icon(painterResource(R.drawable.ic_contact), contentDescription = null) },
             selected = false,
-            onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_contact) } }
+            onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_contact) } }
         )
         NavigationDrawerItem(
             label = { Text(stringResource(R.string.nav_menu_sponsor)) },
             icon = { Icon(painterResource(R.drawable.ic_user), contentDescription = null) },
             selected = false,
-            onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_sponsor) } }
+            onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_sponsor) } }
         )
         NavigationDrawerItem(
             label = { Text(stringResource(R.string.nav_menu_github)) },
             icon = { Icon(painterResource(R.drawable.ic_menu_dev), contentDescription = null) },
             selected = false,
-            onClick = { scope.launch { drawerState.close(); onNavigate(R.id.nav_source_code) } }
+            onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_source_code) } }
         )
     }
 }
