@@ -16,6 +16,7 @@ object ServiceConstants {
     const val EXTRA_COORD_TYPE = "EXTRA_COORD_TYPE"
     const val EXTRA_CONTROL_ACTION = "EXTRA_CONTROL_ACTION"
     const val EXTRA_SPEED_FLUCTUATION = "EXTRA_SPEED_FLUCTUATION"
+    const val EXTRA_NATURAL_JITTER = "EXTRA_NATURAL_JITTER"
     const val EXTRA_SEEK_RATIO = "EXTRA_SEEK_RATIO"
 
     const val CONTROL_PAUSE = "pause"

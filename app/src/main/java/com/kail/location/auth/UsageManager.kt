@@ -46,7 +46,8 @@ object UsageManager {
             return false
         }
 
-        if (AuthManager.isSubscribed) {
+        refreshSubscription()
+        if (AuthManager.isSubscriptionActive()) {
             KailLog.i(context, TAG, "canStartSimulation=true: subscribed")
             return true
         }
@@ -76,12 +77,22 @@ object UsageManager {
         }
     }
 
+    private suspend fun refreshSubscription() {
+        val token = AuthManager.token ?: return
+        val result = withContext(Dispatchers.IO) {
+            RuoYiClient.getSubscriptionStatus(token)
+        }
+        result.onSuccess { status ->
+            AuthManager.updateSubscription(status.active, status.expiresAt)
+        }
+    }
+
     /**
      * Consume one simulation count. Call this when user actually starts simulating.
      */
     suspend fun consumeSimulation(context: Context): Boolean {
         if (!AuthManager.isLoggedIn) return false
-        if (AuthManager.isSubscribed) return true
+        if (AuthManager.isSubscriptionActive()) return true
 
         val token = AuthManager.token ?: return false
         val result = withContext(Dispatchers.IO) {

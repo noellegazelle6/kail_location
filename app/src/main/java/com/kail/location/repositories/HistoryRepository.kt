@@ -19,6 +19,22 @@ class HistoryRepository(private val historyDao: HistoryDao) {
         historyDao.insertRoute(entity)
     }
 
+    suspend fun updateFavorite(id: Long, isFavorite: Boolean) {
+        historyDao.updateFavorite(id, isFavorite)
+    }
+
+    suspend fun deleteRoute(id: Long) {
+        historyDao.deleteRoute(id)
+    }
+
+    suspend fun updateName(id: Long, startName: String, endName: String) {
+        historyDao.updateName(id, startName, endName)
+    }
+
+    suspend fun updateTimestamp(id: Long, timestamp: Long) {
+        historyDao.updateTimestamp(id, timestamp)
+    }
+
     suspend fun clearHistory() {
         historyDao.clearAll()
     }

@@ -10,6 +10,7 @@ sealed class NfcSimulationContract {
         val content: String,
         val type: String,
         val timestamp: Long,
-        val name: String = ""
+        val name: String = "",
+        val isFavorite: Boolean = false
     )
 }

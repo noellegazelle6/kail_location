@@ -342,6 +342,15 @@ class ServiceGoDeveloper : Service() {
         })
     }
 
+    private fun jitterLocation(): Pair<Double, Double> {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        if (!prefs.getBoolean("setting_natural_jitter", false)) return Pair(mCurLat, mCurLng)
+        val sigma = 2.5e-6
+        val jitterLat = (Math.random() * 2 - 1) * sigma
+        val jitterLng = (Math.random() * 2 - 1) * sigma
+        return Pair(mCurLat + jitterLat, mCurLng + jitterLng)
+    }
+
     private fun initGoLocation() {
         mLocHandlerThread = HandlerThread(SERVICE_GO_HANDLER_NAME, Process.THREAD_PRIORITY_BACKGROUND)
         mLocHandlerThread.start()
@@ -363,7 +372,8 @@ class ServiceGoDeveloper : Service() {
                             updateJoystickStatus()
                         }
                     }
-                    mMockLocationProvider.setLocation(mCurLat, mCurLng, mCurAlt, mCurBea, mSpeed, isStop)
+                    val (jlat, jlng) = jitterLocation()
+                    mMockLocationProvider.setLocation(jlat, jlng, mCurAlt, mCurBea, mSpeed, isStop)
                     mLocHandler.sendEmptyMessageDelayed(HANDLER_MSG_ID, currentLocationUpdateIntervalMs())
                 } catch (e: InterruptedException) {
                     KailLog.e(this@ServiceGoDeveloper, "ServiceGoDeveloper", "handleMessage interrupted: ${e.message}")

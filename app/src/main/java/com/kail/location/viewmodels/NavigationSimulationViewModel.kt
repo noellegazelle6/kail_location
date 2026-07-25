@@ -46,6 +46,8 @@ import kotlinx.coroutines.delay
 
 import com.kail.location.data.local.AppDatabase
 import com.kail.location.repositories.HistoryRepository
+import org.json.JSONArray
+import org.json.JSONObject
 
 class NavigationSimulationViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -71,6 +73,11 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
 
     private val _historyList = MutableStateFlow<List<RouteInfo>>(emptyList())
     val historyList: StateFlow<List<RouteInfo>> = _historyList.asStateFlow()
+
+    private val _favOrders = MutableStateFlow<Map<Long, Int>>(emptyMap())
+    val favOrders: StateFlow<Map<Long, Int>> = _favOrders.asStateFlow()
+
+    private var _selectedHistoryId: Long? = null
 
     // Search Suggestions
     private val _searchResults = MutableStateFlow<List<Map<String, Any>>>(emptyList())
@@ -140,6 +147,7 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
     }
 
     init {
+        loadFavOrders()
         viewModelScope.launch {
             historyRepository.recentRoutes.collect { entities ->
                 _historyList.value = entities.map { entity ->
@@ -147,7 +155,8 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
                         id = entity.id.toString(),
                         startName = entity.startName,
                         endName = entity.endName,
-                        distance = "${entity.startLat},${entity.startLng}|${entity.endLat},${entity.endLng}" // Store coords in distance for retrieval
+                        distance = "${entity.startLat},${entity.startLng}|${entity.endLat},${entity.endLng}",
+                        isFavorite = entity.isFavorite
                     )
                 }
             }
@@ -162,6 +171,7 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
     }
 
     fun selectHistoryRoute(route: RouteInfo) {
+        _selectedHistoryId = route.id.toLongOrNull()
         try {
             val parts = route.distance.split("|")
             if (parts.size == 2) {
@@ -368,16 +378,117 @@ class NavigationSimulationViewModel(application: Application) : AndroidViewModel
     }
 
     private fun addToHistory(start: String, end: String) {
-        val startLat = _startLatLng.value?.latitude ?: 0.0
-        val startLng = _startLatLng.value?.longitude ?: 0.0
-        val endLat = _endLatLng.value?.latitude ?: 0.0
-        val endLng = _endLatLng.value?.longitude ?: 0.0
-        
+        val selId = _selectedHistoryId
+        _selectedHistoryId = null
+
         viewModelScope.launch {
-            historyRepository.addRoute(start, end, startLat, startLng, endLat, endLng)
+            if (selId != null) {
+                historyRepository.updateTimestamp(selId, System.currentTimeMillis())
+            } else {
+                val startLat = _startLatLng.value?.latitude ?: 0.0
+                val startLng = _startLatLng.value?.longitude ?: 0.0
+                val endLat = _endLatLng.value?.latitude ?: 0.0
+                val endLng = _endLatLng.value?.longitude ?: 0.0
+                historyRepository.addRoute(start, end, startLat, startLng, endLat, endLng)
+            }
         }
     }
     
+    fun toggleFavorite(id: Long) {
+        viewModelScope.launch {
+            val current = _historyList.value.find { it.id == id.toString() }?.isFavorite ?: return@launch
+            val newFav = !current
+            historyRepository.updateFavorite(id, newFav)
+            val map = _favOrders.value.toMutableMap()
+            if (newFav) {
+                val maxOrder = map.values.maxOrNull() ?: 0
+                map[id] = maxOrder + 1
+            } else {
+                map.remove(id)
+            }
+            _favOrders.value = map
+        }
+    }
+
+    fun deleteHistory(id: Long) {
+        viewModelScope.launch {
+            historyRepository.deleteRoute(id)
+        }
+    }
+
+    fun renameHistory(id: Long, newName: String) {
+        viewModelScope.launch {
+            historyRepository.updateName(id, newName, newName)
+        }
+    }
+
+    fun getFavoriteOrder(id: Long): Int {
+        return _favOrders.value[id] ?: 0
+    }
+
+    fun moveFavoriteUp(id: Long) {
+        val map = _favOrders.value
+        val sortedIds = _historyList.value.filter { it.isFavorite }
+            .map { it.id.toLongOrNull() ?: 0L }
+            .sortedBy { map[it] ?: 0 }
+        val idx = sortedIds.indexOf(id)
+        if (idx <= 0) return
+        val newMap = map.toMutableMap()
+        val curOrder = newMap[id] ?: idx
+        val aboveOrder = newMap[sortedIds[idx - 1]] ?: (idx - 1)
+        newMap[id] = aboveOrder
+        newMap[sortedIds[idx - 1]] = curOrder
+        _favOrders.value = newMap
+    }
+
+    fun moveFavoriteDown(id: Long) {
+        val map = _favOrders.value
+        val sortedIds = _historyList.value.filter { it.isFavorite }
+            .map { it.id.toLongOrNull() ?: 0L }
+            .sortedBy { map[it] ?: 0 }
+        val idx = sortedIds.indexOf(id)
+        if (idx < 0 || idx >= sortedIds.size - 1) return
+        val newMap = map.toMutableMap()
+        val curOrder = newMap[id] ?: idx
+        val belowOrder = newMap[sortedIds[idx + 1]] ?: (idx + 1)
+        newMap[id] = belowOrder
+        newMap[sortedIds[idx + 1]] = curOrder
+        _favOrders.value = newMap
+    }
+
+    fun setFavoriteOrder(ids: List<Long>) {
+        val map = mutableMapOf<Long, Int>()
+        ids.forEachIndexed { index, id -> map[id] = index }
+        _favOrders.value = map
+        saveFavOrders()
+    }
+
+    private fun loadFavOrders() {
+        val json = sharedPreferences.getString("nav_fav_orders", null) ?: return
+        try {
+            val map = mutableMapOf<Long, Int>()
+            val arr = JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                map[obj.getLong("id")] = obj.getInt("order")
+            }
+            _favOrders.value = map
+        } catch (_: Exception) {}
+    }
+
+    private fun saveFavOrders() {
+        try {
+            val arr = JSONArray()
+            _favOrders.value.forEach { (id, order) ->
+                arr.put(JSONObject().apply {
+                    put("id", id)
+                    put("order", order)
+                })
+            }
+            sharedPreferences.edit().putString("nav_fav_orders", arr.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
     fun clearHistory() {
         viewModelScope.launch {
             historyRepository.clearHistory()

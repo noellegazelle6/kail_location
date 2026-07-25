@@ -104,12 +104,7 @@ class NavigationSimulationActivity : BaseActivity() {
                         if (GoUtils.isAllowMockLocation(this)) {
                             viewModel.setRunMode("developer")
                         } else {
-                            try {
-                                val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-                                startActivity(intent)
-                            } catch (e: Exception) {
-                                android.widget.Toast.makeText(this, getString(R.string.app_error_dev), android.widget.Toast.LENGTH_SHORT).show()
-                            }
+                            GoUtils.openMockLocationSettings(this)
                         }
                     },
                     onXposedSettingsSelected = {

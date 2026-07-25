@@ -5,7 +5,11 @@ import android.content.ContextWrapper;
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
+import android.hardware.SensorManager;
+
 import top.niunaijun.blackbox.BlackBoxCore;
+import android.hardware.BridgedSensorManager;
+import top.niunaijun.blackbox.fake.frameworks.BLocationManager;
 
 
 public class GlobalContextWrapper extends ContextWrapper {
@@ -144,13 +148,44 @@ public class GlobalContextWrapper extends ContextWrapper {
         try {
             Context base = getBaseContext();
             if (base != null) {
-                return base.getSystemService(name);
+                Object service = base.getSystemService(name);
+                if (Context.SENSOR_SERVICE.equals(name) && service instanceof SensorManager) {
+                    return wrapSensorManager((SensorManager) service);
+                }
+                return service;
             }
         } catch (Exception e) {
             Slog.w(TAG, "Error getting system service from base context: " + e.getMessage());
         }
-        
-        return fallbackContext.getSystemService(name);
+
+        Object service = fallbackContext.getSystemService(name);
+        if (Context.SENSOR_SERVICE.equals(name) && service instanceof SensorManager) {
+            return wrapSensorManager((SensorManager) service);
+        }
+        return service;
+    }
+
+    private Object wrapSensorManager(SensorManager real) {
+        try {
+            top.niunaijun.blackbox.entity.location.BSensorConfig cfg =
+                    BLocationManager.get().getSensorConfig(
+                            top.niunaijun.blackbox.app.BActivityThread.getUserId(),
+                            top.niunaijun.blackbox.app.BActivityThread.getAppPackageName());
+            if (cfg == null) cfg = BLocationManager.get().getGlobalSensorConfig();
+            if (cfg != null && (cfg.stepEnabled || cfg.accelEnabled)) {
+                BridgedSensorManager wrapper = BridgedSensorManager.wrap(real);
+                if (wrapper != null) {
+                    wrapper.setConfig(cfg.stepEnabled, cfg.stepCadenceSpm,
+                            cfg.accelEnabled, cfg.accelAmplitude);
+                    Slog.i(TAG, "SENSOR_SERVICE wrapped: step=" + cfg.stepEnabled
+                            + " accel=" + cfg.accelEnabled);
+                    return wrapper;
+                }
+            }
+        } catch (Exception e) {
+            Slog.w(TAG, "wrapSensorManager error: " + e.getMessage());
+        }
+        return real;
     }
     
     

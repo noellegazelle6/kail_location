@@ -176,6 +176,8 @@
     <string name="route_plan_latitude">緯度</string>
     <string name="route_plan_longitude">経度</string>
     <string name="route_plan_coord_type">BD09 座標（既定は WGS84）</string>
+    <string name="route_plan_coord_combined">緯度,経度</string>
+    <string name="route_plan_coord_error">有効な緯度,経度を入力してください</string>
     <string name="route_plan_ok">OK</string>
     <string name="route_plan_cancel">キャンセル</string>
 
@@ -299,6 +301,7 @@
     <string name="common_delete">削除</string>
     <string name="common_cancel">キャンセル</string>
     <string name="common_ok">OK</string>
+    <string name="delete_dont_remind_10min">10分間は再通知しない</string>
 
     <string name="drawer_env_check">環境チェック</string>
     <string name="drawer_ok">OK</string>
@@ -724,4 +727,8 @@
         <item>0</item>
         <item>1</item>
     </string-array>
+    <string name="setting_group_personalization">パーソナライズ</string>
+    <string name="setting_floating_window_size">フローティングウィンドウサイズ</string>
+    <string name="setting_floating_window_width">幅</string>
+    <string name="setting_floating_window_height">高さ</string>
 </resources>

@@ -40,8 +40,48 @@ public class BLocation implements Parcelable {
         return mLatitude;
     }
 
+    public void setLatitude(double latitude) {
+        this.mLatitude = latitude;
+    }
+
     public double getLongitude() {
         return mLongitude;
+    }
+
+    public void setLongitude(double longitude) {
+        this.mLongitude = longitude;
+    }
+
+    public double getAltitude() {
+        return mAltitude;
+    }
+
+    public void setAltitude(double altitude) {
+        this.mAltitude = altitude;
+    }
+
+    public float getSpeed() {
+        return mSpeed;
+    }
+
+    public void setSpeed(float speed) {
+        this.mSpeed = speed;
+    }
+
+    public float getBearing() {
+        return mBearing;
+    }
+
+    public void setBearing(float bearing) {
+        this.mBearing = bearing;
+    }
+
+    public float getAccuracy() {
+        return mAccuracy;
+    }
+
+    public void setAccuracy(float accuracy) {
+        this.mAccuracy = accuracy;
     }
 
     public BLocation() {
@@ -56,9 +96,9 @@ public class BLocation implements Parcelable {
         this.mLatitude = in.readDouble();
         this.mLongitude = in.readDouble();
         this.mAltitude = in.readDouble();
-        this.mAccuracy = in.readFloat();
         this.mSpeed = in.readFloat();
         this.mBearing = in.readFloat();
+        this.mAccuracy = in.readFloat();
     }
 
     public boolean isEmpty() {
@@ -93,12 +133,12 @@ public class BLocation implements Parcelable {
         Location location = new Location(LocationManager.GPS_PROVIDER);
         location.setLatitude(mLatitude);
         location.setLongitude(mLongitude);
+        location.setAltitude(mAltitude);
         location.setSpeed(mSpeed);
         location.setBearing(mBearing);
         location.setAccuracy(40f);
         location.setTime(System.currentTimeMillis());
         Bundle extraBundle = new Bundle();
-        
         int satelliteCount = 10;
         extraBundle.putInt("satellites", satelliteCount);
         extraBundle.putInt("satellitesvalue", satelliteCount);

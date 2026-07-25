@@ -1,12 +1,14 @@
 package com.kail.locationxposed.xposed.core
 
+import android.content.Context
+import android.util.Log
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.IXposedHookZygoteInit
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
+import com.kail.locationxposed.xposed.bridge.KailXpBridgeService
 import com.kail.locationxposed.xposed.utils.KailLog
 import com.kail.locationxposed.xposed.sensor.SensorHookLite
-import android.util.Log
 import java.util.concurrent.atomic.AtomicBoolean
 import com.kail.locationxposed.xposed.hooks.BasicLocationHook
 import com.kail.locationxposed.xposed.hooks.LocationManagerHook
@@ -96,6 +98,7 @@ class FakeLocationXposed : IXposedHookLoadPackage, IXposedHookZygoteInit {
                     TelephonyHook.hookSubOnTransact(lpparam.classLoader)
                     ThirdPartyLocationHookLite.hook(cl)
                     SensorHookLite.hook(cl)
+
                 }
                 "com.android.phone" -> {
                     TelephonyHook(lpparam.classLoader)
@@ -122,6 +125,25 @@ class FakeLocationXposed : IXposedHookLoadPackage, IXposedHookZygoteInit {
         }.onFailure {
             KailLog.e(null, "XPOSED", "hook失败: ${it.message}")
             KailLog.e(null, "XPOSED", Log.getStackTraceString(it))
+        }
+
+        if (pkg == "android") {
+            registerXpBridge()
+        }
+    }
+
+    private fun registerXpBridge() {
+        kotlin.runCatching {
+            val atClz = Class.forName("android.app.ActivityThread")
+            val at = atClz.getMethod("currentActivityThread").invoke(null)
+                ?: return@runCatching
+            val ctx = atClz.getMethod("getSystemContext").invoke(at) as? Context
+                ?: return@runCatching
+            val service = KailXpBridgeService(ctx)
+            service.registerInServiceManager()
+            KailLog.d(null, "XPOSED", "XpBridge service registered via getSystemContext")
+        }.onFailure {
+            KailLog.e(null, "XPOSED", "registerXpBridge failed: ${it.message}")
         }
     }
 }

@@ -1898,6 +1898,12 @@ class ServiceGoRoot : Service() {
                 }.onFailure { KailLog.e(this, TAG, "startMockLocation (binder): ${it.message}") }
             }
             runCatching {
+                val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+                if (prefs.getBoolean("setting_natural_jitter", false)) {
+                    val sigma = 2.5e-6
+                    mCurLat += (Math.random() * 2 - 1) * sigma
+                    mCurLng += (Math.random() * 2 - 1) * sigma
+                }
                 val loc = Location(LocationManager.GPS_PROVIDER).apply {
                     latitude = mCurLat
                     longitude = mCurLng

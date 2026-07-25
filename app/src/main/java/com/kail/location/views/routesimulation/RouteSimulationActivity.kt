@@ -151,12 +151,7 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
                             if (GoUtils.isAllowMockLocation(this@RouteSimulationActivity)) {
                                 viewModel.setRunMode("developer")
                             } else {
-                                try {
-                                    val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-                                    startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(this@RouteSimulationActivity, getString(R.string.app_error_dev), Toast.LENGTH_SHORT).show()
-                                }
+                                GoUtils.openMockLocationSettings(this@RouteSimulationActivity)
                             }
                         },
                         onXposedSettingsSelected = {
@@ -165,6 +160,7 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
                         onNavigate = onNavigate,
                             onAddRouteClick = {
                                 editingRouteId = null
+                                viewModel.clearPendingRoute()
                                 mBaiduMap?.clear()
                                 currentScreen = Screen.PLAN
                             },

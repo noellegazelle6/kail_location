@@ -101,6 +101,8 @@
     <string name="joystick_map_tips">搜索或点击地图位置</string>
     <string name="joystick_history_tips">搜索或点击历史位置</string>
     <string name="joystick_history">历史记录</string>
+    <string name="joystick_history_favorites">收藏</string>
+    <string name="joystick_history_normal">历史位置</string>
     <string name="joystick_map">地图</string>
     <string name="joystick_move">移动</string>
     <string name="joystick_walk">步行</string>
@@ -218,8 +220,12 @@
     <string name="route_plan_latitude">纬度</string>
     <string name="route_plan_longitude">经度</string>
     <string name="route_plan_coord_type">BD09坐标 (默认WGS84)</string>
+    <string name="route_plan_coord_combined">纬度,经度</string>
+    <string name="route_plan_coord_error">请输入有效的纬度,经度</string>
     <string name="route_plan_ok">确定</string>
     <string name="route_plan_cancel">取消</string>
+    <string name="route_plan_history">历史位置</string>
+    <string name="route_plan_history_title">选择历史位置</string>
 
     <!-- Settings -->
     <string name="setting_sim_scheme">传感器模拟方案</string>
@@ -287,6 +293,10 @@
 
     <!-- 数据导出 / 导入 -->
     <string name="setting_group_data_transfer">数据备份</string>
+    <string name="setting_group_personalization">个性化</string>
+    <string name="setting_floating_window_size">浮窗大小</string>
+    <string name="setting_floating_window_width">浮窗宽度</string>
+    <string name="setting_floating_window_height">浮窗高度</string>
     <string name="data_transfer_group_general">通用（所有模式）</string>
     <string name="setting_export_data">导出数据</string>
     <string name="setting_export_data_summary">将所选菜单的设置导出为 .bak 备份文件</string>
@@ -487,6 +497,7 @@
     <string name="common_edit">编辑</string>
     <string name="common_delete">删除</string>
     <string name="common_cancel">取消</string>
+    <string name="delete_dont_remind_10min">10分钟内不再提醒</string>
     <string name="common_ok">确定</string>
 
     <!-- Drawer -->

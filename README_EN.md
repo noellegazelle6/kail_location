@@ -91,6 +91,10 @@ Make sure a **Baidu Map API Key** has been configured. The search and navigation
 
 See the guide: [docs/baiduApiKey.md](docs/baiduApiKey.md)
 
+### 2.Root mode prompts for root access but fails
+
+Solution: Install KailLocation 1.6.5 and KailLocationXposed, then start simulation in root mode.
+
 ---
 
 ## Contact

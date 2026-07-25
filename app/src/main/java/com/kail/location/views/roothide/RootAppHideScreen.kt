@@ -1,5 +1,6 @@
 package com.kail.location.views.roothide
 
+import com.kail.location.utils.GoUtils
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -68,8 +69,12 @@ fun RootAppHideScreen(
                     appPrefs.edit().putString("setting_run_mode", mode).apply()
                 },
                 onDeveloperModeSelected = {
-                    runMode = "developer"
-                    appPrefs.edit().putString("setting_run_mode", "developer").apply()
+                    if (GoUtils.isAllowMockLocation(context)) {
+                        runMode = "developer"
+                        appPrefs.edit().putString("setting_run_mode", "developer").apply()
+                    } else {
+                        GoUtils.openMockLocationSettings(context)
+                    }
                 },
                 scope = scope
             )

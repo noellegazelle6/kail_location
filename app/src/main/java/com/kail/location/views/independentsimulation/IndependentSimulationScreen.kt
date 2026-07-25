@@ -1,5 +1,6 @@
 package com.kail.location.views.independentsimulation
 
+import com.kail.location.utils.GoUtils
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import androidx.compose.foundation.clickable
@@ -71,8 +72,12 @@ fun IndependentSimulationScreen(
                     appPrefs.edit().putString("setting_run_mode", mode).apply()
                 },
                 onDeveloperModeSelected = {
-                    runMode = "developer"
-                    appPrefs.edit().putString("setting_run_mode", "developer").apply()
+                    if (GoUtils.isAllowMockLocation(context)) {
+                        runMode = "developer"
+                        appPrefs.edit().putString("setting_run_mode", "developer").apply()
+                    } else {
+                        GoUtils.openMockLocationSettings(context)
+                    }
                 },
                 scope = scope
             )

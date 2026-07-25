@@ -564,7 +564,10 @@ public class MockLocationHookManager {
             if (obj == null) {
                 return -1;
             }
-            return ((Integer) obj).intValue();
+            if (obj instanceof Integer) {
+                return ((Integer) obj).intValue();
+            }
+            return -1;
         }
 
         private static void getILocationListenerStubTransactionCode(Class cls) {
@@ -680,27 +683,33 @@ public class MockLocationHookManager {
             if (list != null) {
                 try {
                     if (!list.isEmpty() && MockLocationHookManager.isMocking()) {
-                        if (list.get(0) == MockLocationHookManager.tempLocation) {
+                        Location tempLoc = MockLocationHookManager.getTempLocation();
+                        if (tempLoc == null) return;
+                        Location first = list.get(0);
+                        if (first == MockLocationHookManager.tempLocation) {
                             String providerByListener = getProviderByListener(obj);
                             if (providerByListener != null) {
-                                Location location = new Location(MockLocationHookManager.getTempLocation());
+                                Location location = new Location(tempLoc);
                                 location.setProvider(providerByListener);
                                 list = Arrays.asList(location);
                             }
                         } else if (MockLocationHookManager.isAllMock()) {
-                            Location location2 = new Location(MockLocationHookManager.getTempLocation());
+                            Location location2 = new Location(tempLoc);
                             String providerByListener2 = getProviderByListener(obj);
                             if (providerByListener2 != null) {
                                 location2.setProvider(providerByListener2);
                             }
                             list = Arrays.asList(location2);
-                        } else if (MockLocationHookManager.isAllowMockPackage(getPackageNameByListener(obj))) {
-                            Location location3 = new Location(MockLocationHookManager.getTempLocation());
-                            String providerByListener3 = getProviderByListener(obj);
-                            if (providerByListener3 != null) {
-                                location3.setProvider(providerByListener3);
+                        } else {
+                            String pkg = getPackageNameByListener(obj);
+                            if (pkg != null && MockLocationHookManager.isAllowMockPackage(pkg)) {
+                                Location location3 = new Location(tempLoc);
+                                String providerByListener3 = getProviderByListener(obj);
+                                if (providerByListener3 != null) {
+                                    location3.setProvider(providerByListener3);
+                                }
+                                list = Arrays.asList(location3);
                             }
-                            list = Arrays.asList(location3);
                         }
                     }
                 } catch (Throwable th) {
@@ -713,7 +722,14 @@ public class MockLocationHookManager {
                     return;
                 }
             }
-            onLocationChanged_bak(obj, list, obj2);
+            if (list != null && !list.isEmpty() && list.get(0) == null) {
+                list = null;
+            }
+            try {
+                onLocationChanged_bak(obj, list, obj2);
+            } catch (Throwable t) {
+                MockLocationHookManager.log("onLocationChanged_bak crashed: " + t.getMessage());
+            }
         }
 
         public static void onLocationChanged2(Object obj, List<Location> list, Object obj2) {
@@ -721,27 +737,33 @@ public class MockLocationHookManager {
             if (list != null) {
                 try {
                     if (!list.isEmpty() && MockLocationHookManager.isMocking()) {
-                        if (list.get(0) == MockLocationHookManager.tempLocation) {
+                        Location tempLoc = MockLocationHookManager.getTempLocation();
+                        if (tempLoc == null) return;
+                        Location first = list.get(0);
+                        if (first == MockLocationHookManager.tempLocation) {
                             String providerByListener = getProviderByListener(obj);
                             if (providerByListener != null) {
-                                Location location = new Location(MockLocationHookManager.getTempLocation());
+                                Location location = new Location(tempLoc);
                                 location.setProvider(providerByListener);
                                 list = Arrays.asList(location);
                             }
                         } else if (MockLocationHookManager.isAllMock()) {
-                            Location location2 = new Location(MockLocationHookManager.getTempLocation());
+                            Location location2 = new Location(tempLoc);
                             String providerByListener2 = getProviderByListener(obj);
                             if (providerByListener2 != null) {
                                 location2.setProvider(providerByListener2);
                             }
                             list = Arrays.asList(location2);
-                        } else if (MockLocationHookManager.isAllowMockPackage(getPackageNameByListener(obj))) {
-                            Location location3 = new Location(MockLocationHookManager.getTempLocation());
-                            String providerByListener3 = getProviderByListener(obj);
-                            if (providerByListener3 != null) {
-                                location3.setProvider(providerByListener3);
+                        } else {
+                            String pkg = getPackageNameByListener(obj);
+                            if (pkg != null && MockLocationHookManager.isAllowMockPackage(pkg)) {
+                                Location location3 = new Location(tempLoc);
+                                String providerByListener3 = getProviderByListener(obj);
+                                if (providerByListener3 != null) {
+                                    location3.setProvider(providerByListener3);
+                                }
+                                list = Arrays.asList(location3);
                             }
-                            list = Arrays.asList(location3);
                         }
                     }
                 } catch (Throwable th) {
@@ -754,11 +776,19 @@ public class MockLocationHookManager {
                     return;
                 }
             }
-            onLocationChanged2_bak(obj, list, obj2);
+            if (list != null && !list.isEmpty() && list.get(0) == null) {
+                list = null;
+            }
+            try {
+                onLocationChanged2_bak(obj, list, obj2);
+            } catch (Throwable t) {
+                MockLocationHookManager.log("onLocationChanged2_bak crashed: " + t.getMessage());
+            }
         }
 
         public static void onLocationChanged2_bak(Object obj, List<Location> list, Object obj2) {
             MockLocationHookManager.log("onLocationChanged2_bak", obj, list, obj2);
+            if (obj == null) return;
             onLocationChanged2_copy(obj, list, obj2);
             try {
                 StringBuffer stringBuffer = new StringBuffer();
@@ -774,7 +804,6 @@ public class MockLocationHookManager {
                 for (int i2 = 0; i2 < 100; i2 = i2 + 1 + 1) {
                 }
             } catch (Exception e) {
-                e.printStackTrace();
             }
             try {
                 StringBuffer stringBuffer2 = new StringBuffer();
@@ -790,7 +819,6 @@ public class MockLocationHookManager {
                 for (int i4 = 0; i4 < 100; i4 = i4 + 1 + 1) {
                 }
             } catch (Exception e2) {
-                e2.printStackTrace();
             }
         }
 
@@ -832,6 +860,7 @@ public class MockLocationHookManager {
 
         public static void onLocationChanged_bak(Object obj, List<Location> list, Object obj2) {
             MockLocationHookManager.log("onLocationChanged_bak", obj, list, obj2);
+            if (obj == null) return;
             onLocationChanged_copy(obj, list, obj2);
             try {
                 StringBuffer stringBuffer = new StringBuffer();
@@ -847,7 +876,6 @@ public class MockLocationHookManager {
                 for (int i2 = 0; i2 < 100; i2 = i2 + 1 + 1) {
                 }
             } catch (Exception e) {
-                e.printStackTrace();
             }
             try {
                 StringBuffer stringBuffer2 = new StringBuffer();
@@ -863,7 +891,6 @@ public class MockLocationHookManager {
                 for (int i4 = 0; i4 < 100; i4 = i4 + 1 + 1) {
                 }
             } catch (Exception e2) {
-                e2.printStackTrace();
             }
         }
 
@@ -3201,6 +3228,12 @@ public class MockLocationHookManager {
     }
 
     public static Location getTempLocation() {
+        if (tempLocation == null) {
+            tempLocation = new Location("gps");
+        }
+        if (mockLocation == null) {
+            mockLocation = new Location("gps");
+        }
         tempLocation.set(mockLocation);
         Location location = tempLocation;
         location.setLatitude(location.getLatitude() + (((double) (new SecureRandom().nextBoolean() ? -1 : 1)) * (((double) new SecureRandom().nextFloat()) / 1.0E7d)));

@@ -176,6 +176,8 @@
     <string name="route_plan_latitude">緯度</string>
     <string name="route_plan_longitude">經度</string>
     <string name="route_plan_coord_type">BD09 座標（預設 WGS84）</string>
+    <string name="route_plan_coord_combined">緯度,經度</string>
+    <string name="route_plan_coord_error">請輸入有效的緯度,經度</string>
     <string name="route_plan_ok">確定</string>
     <string name="route_plan_cancel">取消</string>
 
@@ -298,6 +300,7 @@
     <string name="common_delete">刪除</string>
     <string name="common_cancel">取消</string>
     <string name="common_ok">確定</string>
+    <string name="delete_dont_remind_10min">10分鐘內不再提醒</string>
 
     <string name="drawer_env_check">環境檢查</string>
     <string name="drawer_ok">確定</string>
@@ -724,4 +727,8 @@
         <item>0</item>
         <item>1</item>
     </string-array>
+    <string name="setting_group_personalization">個性化</string>
+    <string name="setting_floating_window_size">浮窗大小</string>
+    <string name="setting_floating_window_width">寬度</string>
+    <string name="setting_floating_window_height">高度</string>
 </resources>

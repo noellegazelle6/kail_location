@@ -1,11 +1,19 @@
 package com.kail.location.views.routesimulation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import kotlin.math.abs
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -33,6 +41,7 @@ import com.kail.location.viewmodels.RouteSimulationViewModel
 import com.kail.location.views.common.DrawerHeader
 
 import androidx.compose.ui.platform.LocalContext
+import androidx.preference.PreferenceManager
 import android.content.Intent
 import android.net.Uri
 import com.kail.location.views.common.UpdateDialog
@@ -72,8 +81,15 @@ fun RouteSimulationScreen(
     
     val historyRoutes by viewModel.historyRoutes.collectAsState()
     val selectedId by viewModel.selectedRouteId.collectAsState()
+    val pendingName by viewModel.pendingRouteName.collectAsState()
     val noName = stringResource(R.string.route_sim_no_name)
-    val currentRoute = historyRoutes.firstOrNull { it.id == selectedId } ?: historyRoutes.firstOrNull() ?: RouteInfo("-", noName, noName, "")
+    val currentRoute = if (selectedId != null && selectedId != "pending") {
+        historyRoutes.firstOrNull { it.id == selectedId } ?: RouteInfo("-", noName, noName, "")
+    } else if (pendingName != null) {
+        RouteInfo("pending", pendingName!!, pendingName!!, "")
+    } else {
+        historyRoutes.firstOrNull() ?: RouteInfo("-", noName, noName, "")
+    }
     val updateInfo by viewModel.updateInfo.collectAsState()
     val isSimulating by viewModel.isSimulating.collectAsState()
     val isStarting by viewModel.isStarting.collectAsState()
@@ -168,7 +184,7 @@ fun RouteSimulationScreen(
                     // Target Route Card
                     Box(
                         modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 16.dp)
+                            .padding(horizontal = 16.dp)
                     ) {
                         RouteCard(
                             route = currentRoute,
@@ -181,7 +197,8 @@ fun RouteSimulationScreen(
                             isStarting = isStarting,
                             onStopSimulation = onStopSimulation,
                             isPaused = isPaused,
-                            onPauseResume = { if (isPaused) viewModel.resumeSimulation() else viewModel.pauseSimulation() }
+                            onPauseResume = { if (isPaused) viewModel.resumeSimulation() else viewModel.pauseSimulation() },
+                            modifier = Modifier.padding(top = 16.dp)
                         )
                         
                         // FAB overlapping the card
@@ -192,53 +209,194 @@ fun RouteSimulationScreen(
                             shape = CircleShape,
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .offset(y = (-24).dp)
                                 .size(48.dp)
                         ) {
                             Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
                         }
                     }
 
-                    // History Title
-                    Text(
-                        text = stringResource(R.string.route_sim_history),
-                        color = Color.Gray,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(start = 24.dp, bottom = 8.dp)
-                    )
+                    var selectedTab by remember { mutableStateOf(0) }
+                    var searchQuery by remember { mutableStateOf("") }
+                    var isSearchVisible by remember { mutableStateOf(false) }
+                    val favRoutes = historyRoutes.filter { it.isFavorite }
+                        .sortedWith(compareBy<RouteInfo> { it.favoriteOrder }.thenByDescending { it.favoriteTime })
+                    val allRoutes = historyRoutes.sortedByDescending { it.id.toLongOrNull() ?: 0L }
 
-                    // History List
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(historyRoutes) { route ->
-                            Card(
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth().clickable { viewModel.selectRoute(route.id) }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(text = route.startName, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                                        Text(text = route.endName, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TabRow(
+                            selectedTabIndex = selectedTab,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Tab(
+                                selected = selectedTab == 0,
+                                onClick = { selectedTab = 0 },
+                                text = { Text(stringResource(R.string.joystick_history_favorites), fontSize = 14.sp) }
+                            )
+                            Tab(
+                                selected = selectedTab == 1,
+                                onClick = { selectedTab = 1 },
+                                text = { Text(stringResource(R.string.route_sim_history), fontSize = 14.sp) }
+                            )
+                        }
+                        IconButton(onClick = { isSearchVisible = !isSearchVisible }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+                    }
+
+                    if (isSearchVisible) {
+                        val searchTextStyle = MaterialTheme.typography.bodySmall
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            singleLine = true,
+                            textStyle = searchTextStyle,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .height(32.dp)
+                                .border(1.dp, Color.LightGray, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            decorationBox = { innerTextField ->
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxHeight()) {
+                                    Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        if (searchQuery.isEmpty()) {
+                                            Text(stringResource(R.string.app_search_tips), style = searchTextStyle, color = Color.Gray)
+                                        }
+                                        innerTextField()
                                     }
-                                    Row {
-                                        IconButton(onClick = { onEditRoute(route.id) }) {
-                                            Icon(Icons.Default.Place, contentDescription = "Edit Route", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                        IconButton(onClick = { renameTarget = route; renameText = route.startName }) {
-                                            Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                        IconButton(onClick = { viewModel.deleteRoute(route.id) }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { searchQuery = ""; isSearchVisible = false }, modifier = Modifier.size(18.dp)) {
+                                            Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(14.dp))
                                         }
                                     }
                                 }
+                            }
+                        )
+                    }
+
+                    val filteredFavRoutes = if (searchQuery.isBlank()) favRoutes
+                        else favRoutes.filter { it.startName.contains(searchQuery, ignoreCase = true) || it.endName.contains(searchQuery, ignoreCase = true) }
+
+                    if (selectedTab == 0) {
+                        var draggedId by remember { mutableStateOf<String?>(null) }
+                        var dragOffset by remember { mutableStateOf(0f) }
+                        val localFavList = remember { mutableStateListOf<RouteInfo>() }
+
+                        LaunchedEffect(filteredFavRoutes) {
+                            if (draggedId == null) {
+                                localFavList.clear()
+                                localFavList.addAll(filteredFavRoutes)
+                            }
+                        }
+
+                        if (localFavList.isEmpty()) {
+                            Box(
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(stringResource(R.string.history_idle), color = Color.Gray)
+                            }
+                        } else {
+                            val scrollState = rememberScrollState()
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .verticalScroll(scrollState)
+                                    .pointerInput(Unit) {
+                                        val cardHeightPx = 72.dp.toPx()
+                                        val gapPx = 8.dp.toPx()
+                                        val itemUnitPx = cardHeightPx + gapPx
+
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = { offset ->
+                                                val contentY = offset.y + scrollState.value
+                                                val idx = (contentY / itemUnitPx).toInt().coerceIn(0, localFavList.lastIndex)
+                                                localFavList.clear()
+                                                localFavList.addAll(filteredFavRoutes)
+                                                draggedId = localFavList.getOrNull(idx)?.id
+                                                dragOffset = 0f
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                if (draggedId == null) return@detectDragGesturesAfterLongPress
+                                                dragOffset += dragAmount.y
+                                                val curIdx = localFavList.indexOfFirst { it.id == draggedId }
+                                                if (curIdx < 0) return@detectDragGesturesAfterLongPress
+                                                val thresholdPx = cardHeightPx * 0.92f
+                                                if (abs(dragOffset) >= thresholdPx) {
+                                                    val dir = if (dragOffset > 0) 1 else -1
+                                                    val targetIdx = (curIdx + dir).coerceIn(0, localFavList.lastIndex)
+                                                    if (targetIdx != curIdx) {
+                                                        val temp = localFavList[curIdx]
+                                                        localFavList[curIdx] = localFavList[targetIdx]
+                                                        localFavList[targetIdx] = temp
+                                                    }
+                                                    dragOffset -= dir * thresholdPx
+                                                }
+                                            },
+                                            onDragEnd = {
+                                                if (draggedId != null) {
+                                                    viewModel.setFavoriteOrder(localFavList.map { it.id })
+                                                }
+                                                draggedId = null
+                                                dragOffset = 0f
+                                            },
+                                            onDragCancel = {
+                                                draggedId = null
+                                                dragOffset = 0f
+                                            }
+                                        )
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                localFavList.forEachIndexed { _, route ->
+                                    val isDragged = draggedId == route.id
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .zIndex(if (isDragged) 1f else 0f)
+                                            .graphicsLayer {
+                                                translationY = if (isDragged) dragOffset else 0f
+                                                shadowElevation = if (isDragged) 16f else 0f
+                                            }
+                                    ) {
+                                        RouteHistoryCard(
+                                            route = route,
+                                            isFav = true,
+                                            showMoveButtons = false,
+                                            onSelect = { viewModel.clearPendingRoute(); viewModel.selectRoute(route.id) },
+                                            onToggleFavorite = { viewModel.toggleFavorite(route.id) },
+                                            onEdit = { onEditRoute(route.id) },
+                                            onRename = { renameTarget = route; renameText = route.startName },
+                                            onDelete = { viewModel.deleteRoute(route.id) }
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
+                        }
+                    } else {
+                        val src = if (searchQuery.isBlank()) allRoutes
+                            else allRoutes.filter { it.startName.contains(searchQuery, ignoreCase = true) || it.endName.contains(searchQuery, ignoreCase = true) }
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(src, key = { "all_${it.id}" }) { route ->
+                                RouteHistoryCard(
+                                    route = route,
+                                    isFav = route.isFavorite,
+                                    showMoveButtons = false,
+                                    onSelect = { viewModel.clearPendingRoute(); viewModel.selectRoute(route.id) },
+                                    onToggleFavorite = { viewModel.toggleFavorite(route.id) },
+                                    onEdit = { onEditRoute(route.id) },
+                                    onRename = { renameTarget = route; renameText = route.startName },
+                                    onDelete = { viewModel.deleteRoute(route.id) }
+                                )
                             }
                         }
                     }
@@ -303,21 +461,22 @@ fun RouteCard(
     isStarting: Boolean = false,
     onStopSimulation: (() -> Unit)? = null,
     isPaused: Boolean = false,
-    onPauseResume: (() -> Unit)? = null
+    onPauseResume: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     Card(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             if (isTarget) {
                 Text(
                     text = stringResource(R.string.route_sim_target),
                     color = MaterialTheme.colorScheme.primary,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
 
@@ -325,51 +484,51 @@ fun RouteCard(
                 // Route Visuals (Icons and Line)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(end = 12.dp, top = 4.dp)
+                    modifier = Modifier.padding(end = 8.dp)
                 ) {
                     // Start Icon
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_home_position), // Using existing icon or similar
+                        painter = painterResource(id = R.drawable.ic_home_position),
                         contentDescription = "Start",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     
                     // Dotted Line (Simulated with Box)
                     Box(
                         modifier = Modifier
                             .width(1.dp)
-                            .height(24.dp)
+                            .height(16.dp)
                             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
                     )
                     
                     // End Icon
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_position), // Using existing icon or similar
+                        painter = painterResource(id = R.drawable.ic_position),
                         contentDescription = "End",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
                 // Route Details
-                Column(modifier = Modifier.weight(1f).padding(top = 4.dp)) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = route.startName + route.distance,
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = route.endName,
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
 
             if (isTarget && settings != null) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -489,7 +648,7 @@ fun SettingsDialog(
     runMode: String = "developer"
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val canUseStepFreq = runMode == "root" || runMode == "xposed"
+    val canUseStepFreq = runMode == "root" || runMode == "xposed" || runMode == "sandbox"
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -633,5 +792,106 @@ fun getModeIcon(mode: TransportMode): Int {
         TransportMode.Bike -> R.drawable.ic_bike
         TransportMode.Car -> R.drawable.ic_move // Placeholder if ic_car doesn't exist
         TransportMode.Plane -> R.drawable.ic_fly
+    }
+}
+
+@Composable
+fun RouteHistoryCard(
+    route: RouteInfo,
+    isFav: Boolean,
+    showMoveButtons: Boolean = false,
+    onSelect: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onEdit: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onMoveUp: () -> Unit = {},
+    onMoveDown: () -> Unit = {}
+) {
+    Card(
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onSelect() }
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            if (showMoveButtons) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text("▲", modifier = Modifier.clickable(onClick = onMoveUp).padding(2.dp), fontSize = 12.sp, color = Color.Gray)
+                    Text("▼", modifier = Modifier.clickable(onClick = onMoveDown).padding(2.dp), fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = route.startName, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = route.endName, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            }
+            Row {
+                IconButton(onClick = onToggleFavorite) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = "Favorite",
+                        tint = if (isFav) Color(0xFFFFB300) else Color.Gray,
+                        modifier = Modifier.graphicsLayer(alpha = if (isFav) 1f else 0.4f)
+                    )
+                }
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Place, contentDescription = "Edit Route", tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onRename) {
+                    Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
+                }
+                val context = LocalContext.current
+                val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
+                val showDeleteConfirm = remember { mutableStateOf(false) }
+                var dontRemind by remember { mutableStateOf(false) }
+                IconButton(onClick = {
+                    if (System.currentTimeMillis() < prefs.getLong("delete_dont_remind_until", 0L)) {
+                        onDelete()
+                    } else {
+                        showDeleteConfirm.value = true
+                        dontRemind = false
+                    }
+                }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                }
+                if (showDeleteConfirm.value) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteConfirm.value = false },
+                        title = { Text(stringResource(R.string.common_warning)) },
+                        text = {
+                            Column {
+                                Text(stringResource(R.string.common_delete_item_confirm))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(checked = dontRemind, onCheckedChange = { dontRemind = it })
+                                    Text(stringResource(R.string.delete_dont_remind_10min), fontSize = 14.sp)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                if (dontRemind) {
+                                    prefs.edit().putLong("delete_dont_remind_until", System.currentTimeMillis() + 10 * 60 * 1000).apply()
+                                }
+                                showDeleteConfirm.value = false; onDelete()
+                            }) {
+                                Text(stringResource(R.string.common_confirm))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDeleteConfirm.value = false }) {
+                                Text(stringResource(R.string.common_cancel))
+                            }
+                        }
+                    )
+                }
+            }
+        }
     }
 }

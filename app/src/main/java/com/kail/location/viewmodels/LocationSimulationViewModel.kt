@@ -164,6 +164,11 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
     fun setRunMode(mode: String) {
         _runMode.value = mode
         sharedPreferences.edit().putString("setting_run_mode", mode).apply()
+        if (mode != "root" && mode != "xposed" && mode != "sandbox") {
+            if (_stepSimulationEnabled.value) {
+                setStepSimulationEnabled(false)
+            }
+        }
     }
 
     /**
@@ -212,17 +217,20 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                 }
                 
                 try {
-                    val wgs84 = MapUtils.bd2wgs(info.longitude, info.latitude)
-                    db?.let {
-                        DataBaseHistoryLocation.addHistoryLocation(
-                            it,
-                            info.name,
-                            wgs84[0].toString(),
-                            wgs84[1].toString(),
-                            (System.currentTimeMillis() / 1000).toString(),
-                            info.longitude.toString(),
-                            info.latitude.toString()
-                        )
+                    if (info.longitude != 0.0 || info.latitude != 0.0) {
+                        val wgs84 = MapUtils.bd2wgs(info.longitude, info.latitude)
+                        db?.let {
+                            DataBaseHistoryLocation.addHistoryLocation(
+                                it,
+                                info.name,
+                                wgs84[0].toString(),
+                                wgs84[1].toString(),
+                                (System.currentTimeMillis() / 1000).toString(),
+                                info.longitude.toString(),
+                                info.latitude.toString()
+                            )
+                        }
+                        DataBaseHistoryLocation.notifyChanged()
                     }
                 } catch (_: Exception) {}
                 val serviceClass = getServiceClass(currentRunMode)
@@ -236,11 +244,13 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                 intent.putExtra(extraCoordType, "BD09")
                 intent.putExtra("EXTRA_IS_ROUTE_SIMULATION", false)
                 
-                if (currentRunMode == "root") {
+                if (currentRunMode == "root" || currentRunMode == "sandbox") {
                     val stepEnabled = _stepSimulationEnabled.value
                     val cadence = _stepCadenceSpm.value
-                    intent.putExtra(ServiceGoRoot.EXTRA_STEP_ENABLED, stepEnabled)
-                    intent.putExtra(ServiceGoRoot.EXTRA_STEP_FREQ, cadence)
+                    val extraStepKey = if (currentRunMode == "root") ServiceGoRoot.EXTRA_STEP_ENABLED else com.kail.location.service.Sandbox.ServiceGoSandbox.EXTRA_STEP_ENABLED
+                    val extraFreqKey = if (currentRunMode == "root") ServiceGoRoot.EXTRA_STEP_FREQ else com.kail.location.service.Sandbox.ServiceGoSandbox.EXTRA_STEP_FREQ
+                    intent.putExtra(extraStepKey, stepEnabled)
+                    intent.putExtra(extraFreqKey, cadence)
                 }
                 
                 if (ContextCompat.checkSelfPermission(app, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -432,19 +442,30 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             val database = db
             if (database != null) {
                 try {
-                    val cursor = database.query(
-                        DataBaseHistoryLocation.TABLE_NAME, null,
-                        DataBaseHistoryLocation.DB_COLUMN_ID + " > ?", arrayOf("0"),
-                        null, null, DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP + " DESC", null
-                    )
-                    while (cursor.moveToNext()) {
-                        val id = cursor.getInt(0)
-                        val location = cursor.getString(1)
-                        val longitude = cursor.getString(2)
-                        val latitude = cursor.getString(3)
-                        val timeStamp = cursor.getInt(4).toLong()
-                        val bd09Longitude = cursor.getString(5)
-                        val bd09Latitude = cursor.getString(6)
+                    val colInfo = mutableListOf<String>()
+                    val pc = database.rawQuery("PRAGMA table_info(${DataBaseHistoryLocation.TABLE_NAME})", null)
+                    while (pc.moveToNext()) { colInfo.add(pc.getString(1)) }
+                    pc.close()
+
+                    val hasFavCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE in colInfo
+                    val hasFavTimeCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE_TIME in colInfo
+
+                    val orderClauses = mutableListOf<String>()
+                    if (hasFavCol) orderClauses.add("${DataBaseHistoryLocation.DB_COLUMN_FAVORITE} DESC")
+                    orderClauses.add("${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC")
+                    val cursor2 = database.rawQuery("SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 ORDER BY ${orderClauses.joinToString(",")}", null)
+                    while (cursor2.moveToNext()) {
+                        val id = cursor2.getInt(0)
+                        val location = cursor2.getString(1)
+                        val longitude = cursor2.getString(2)
+                        val latitude = cursor2.getString(3)
+                        val timeStamp = cursor2.getInt(4).toLong()
+                        val bd09Longitude = cursor2.getString(5)
+                        val bd09Latitude = cursor2.getString(6)
+                        val hasFavOrderCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE_ORDER in colInfo
+                        val isFav = if (hasFavCol) cursor2.getInt(7) == 1 else false
+                        val favTime = if (hasFavTimeCol) cursor2.getLong(8) else 0L
+                        val favOrder = if (hasFavOrderCol) cursor2.getInt(9) else 0
                         list.add(
                             HistoryRecord(
                                 id = id,
@@ -456,15 +477,22 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
                                 latitudeBd09 = bd09Latitude,
                                 displayTime = com.kail.location.utils.GoUtils.timeStamp2Date(timeStamp.toString()),
                                 displayWgs84 = "",
-                                displayBd09 = ""
+                                displayBd09 = "",
+                                isFavorite = isFav,
+                                favoriteTime = favTime,
+                                favoriteOrder = favOrder
                             )
                         )
                     }
-                    cursor.close()
+                    cursor2.close()
                 } catch (_: Exception) {}
             }
             _historyRecords.value = list
         }
+    }
+
+    fun setLocationInfo(name: String, latitude: Double, longitude: Double) {
+        _locationInfo.value = LocationInfo(name = name, address = name, latitude = latitude, longitude = longitude)
     }
 
     fun selectRecord(record: HistoryRecord) {
@@ -475,6 +503,47 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             latitude = record.latitudeBd09.toDoubleOrNull() ?: 0.0,
             longitude = record.longitudeBd09.toDoubleOrNull() ?: 0.0
         )
+    }
+
+    fun moveFavorite(id: Int, up: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val favs = _historyRecords.value.filter { it.isFavorite }
+                    .sortedWith(compareBy<HistoryRecord> { it.favoriteOrder }.thenByDescending { it.favoriteTime })
+                val idx = favs.indexOfFirst { it.id == id }
+                if (idx < 0) return@launch
+                val swapIdx = if (up) idx - 1 else idx + 1
+                if (swapIdx < 0 || swapIdx >= favs.size) return@launch
+                db?.let {
+                    DataBaseHistoryLocation.updateFavoriteOrder(it, id, swapIdx)
+                    DataBaseHistoryLocation.updateFavoriteOrder(it, favs[swapIdx].id, idx)
+                }
+                loadRecords()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun setFavoriteOrder(ids: List<Int>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                db?.let { db ->
+                    ids.forEachIndexed { index, id ->
+                        DataBaseHistoryLocation.updateFavoriteOrder(db, id, index)
+                    }
+                }
+                loadRecords()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun toggleFavorite(id: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val record = _historyRecords.value.find { it.id == id } ?: return@launch
+                db?.let { DataBaseHistoryLocation.updateFavorite(it, id, !record.isFavorite) }
+            } catch (_: Exception) {}
+            loadRecords()
+        }
     }
 
     fun renameRecord(id: Int, newName: String) {

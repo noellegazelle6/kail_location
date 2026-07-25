@@ -32,117 +32,28 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.random.Random
 import kotlin.uuid.ExperimentalUuidApi
 
-private const val MAX_SATELLITES = 35 // 北斗系统实际可见卫星数上限
 private const val MAX_TRACKED_GNSS_LISTENERS = 128
 private const val MAX_TRACKED_LOCATION_LISTENERS = 256
 
-// 载噪比范围，考虑不同轨道类型
-private const val GEO_MIN_CN0 = 30.0f  // GEO卫星信号较强
-private const val GEO_MAX_CN0 = 45.0f
-private const val IGSO_MIN_CN0 = 25.0f
-private const val IGSO_MAX_CN0 = 42.0f
-private const val MEO_MIN_CN0 = 20.0f  // MEO卫星信号相对较弱
-private const val MEO_MAX_CN0 = 40.0f
+private const val CONSTELLATION_GPS = 1
+private const val CONSTELLATION_BEIDOU = 5
+private const val SVID_SHIFT_WIDTH = 12
+private const val CONSTELLATION_TYPE_SHIFT_WIDTH = 8
+private const val CONSTELLATION_TYPE_MASK = 0xf
 
-// 北斗频率
-private const val BDS_B1I_FREQ = 1561.098f // MHz
-private const val BDS_B2I_FREQ = 1207.140f
-private const val BDS_B3I_FREQ = 1268.520f
+private val GPS_L1_FREQ = 1.57542e9f
+private val BDS_B1I_FREQ = 1.561098e9f
 
-private val satelliteList = listOf(
-    BDSSatellite(1, OrbitType.GEO),
-    BDSSatellite(2, OrbitType.GEO),
-    BDSSatellite(3, OrbitType.GEO),
-    BDSSatellite(4, OrbitType.GEO),
-    BDSSatellite(5, OrbitType.GEO),
-    BDSSatellite(6, OrbitType.IGSO),
-    BDSSatellite(7, OrbitType.IGSO),
-    BDSSatellite(8, OrbitType.IGSO),
-    BDSSatellite(9, OrbitType.IGSO),
-    BDSSatellite(10, OrbitType.IGSO),
-    BDSSatellite(11, OrbitType.MEO),
-    BDSSatellite(12, OrbitType.MEO),
-    BDSSatellite(13, OrbitType.IGSO),
-    BDSSatellite(14, OrbitType.MEO),
-    BDSSatellite(16, OrbitType.IGSO),
-    BDSSatellite(19, OrbitType.MEO),
-    BDSSatellite(20, OrbitType.MEO),
-    BDSSatellite(21, OrbitType.MEO),
-    BDSSatellite(22, OrbitType.MEO),
-    BDSSatellite(23, OrbitType.MEO),
-    BDSSatellite(24, OrbitType.MEO),
-    BDSSatellite(25, OrbitType.MEO),
-    BDSSatellite(26, OrbitType.MEO),
-    BDSSatellite(27, OrbitType.MEO),
-    BDSSatellite(28, OrbitType.MEO),
-    BDSSatellite(29, OrbitType.MEO),
-    BDSSatellite(30, OrbitType.MEO),
-    BDSSatellite(31, OrbitType.IGSO),
-    BDSSatellite(32, OrbitType.MEO),
-    BDSSatellite(33, OrbitType.MEO),
-    BDSSatellite(34, OrbitType.MEO),
-    BDSSatellite(35, OrbitType.MEO),
-    BDSSatellite(36, OrbitType.MEO),
-    BDSSatellite(37, OrbitType.MEO),
-    BDSSatellite(38, OrbitType.IGSO),
-    BDSSatellite(39, OrbitType.IGSO),
-    BDSSatellite(40, OrbitType.IGSO),
-    BDSSatellite(41, OrbitType.MEO),
-    BDSSatellite(42, OrbitType.MEO),
-    BDSSatellite(43, OrbitType.MEO),
-    BDSSatellite(44, OrbitType.MEO),
-    BDSSatellite(45, OrbitType.MEO),
-    BDSSatellite(46, OrbitType.MEO),
-    BDSSatellite(56, OrbitType.IGSO),
-    BDSSatellite(57, OrbitType.MEO),
-    BDSSatellite(58, OrbitType.MEO),
-    BDSSatellite(59, OrbitType.GEO),
-    BDSSatellite(60, OrbitType.GEO),
-    BDSSatellite(61, OrbitType.GEO),
-    BDSSatellite(62, OrbitType.GEO),
-    BDSSatellite(48, OrbitType.MEO),
-    BDSSatellite(50, OrbitType.MEO),
-    BDSSatellite(47, OrbitType.MEO),
-    BDSSatellite(49, OrbitType.MEO),
-//    BDSSatellite(130, OrbitType.GEO),
-//    BDSSatellite(143, OrbitType.GEO),
-//    BDSSatellite(144, OrbitType.GEO),
-)
-
-object GnssFlags {
-    // 基本标志位
-    const val SVID_FLAGS_NONE = 0
-    const val SVID_FLAGS_HAS_EPHEMERIS_DATA = (1 shl 0)
-    const val SVID_FLAGS_HAS_ALMANAC_DATA = (1 shl 1)
-    const val SVID_FLAGS_USED_IN_FIX = (1 shl 2)
-    const val SVID_FLAGS_HAS_CARRIER_FREQUENCY = (1 shl 3)
-    const val SVID_FLAGS_HAS_BASEBAND_CN0 = (1 shl 4)
-
-    // 位移宽度
-    const val SVID_SHIFT_WIDTH = 12
-    const val CONSTELLATION_TYPE_SHIFT_WIDTH = 8
-    const val CONSTELLATION_TYPE_MASK = 0xf
-
-    // 星座类型（与 Android GnssStatus.CONSTELLATION_ 常量对应）
-    const val CONSTELLATION_GPS = 1
-    const val CONSTELLATION_SBAS = 2
-    const val CONSTELLATION_GLONASS = 3
-    const val CONSTELLATION_QZSS = 4
-    const val CONSTELLATION_BEIDOU = 5
-    const val CONSTELLATION_GALILEO = 6
-    const val CONSTELLATION_IRNSS = 7
-}
-
-sealed class OrbitType(val minCn0: Float, val maxCn0: Float, val elevationRange: ClosedRange<Float>) {
-    object GEO : OrbitType(GEO_MIN_CN0, GEO_MAX_CN0, 35f..50f)
-    object IGSO : OrbitType(IGSO_MIN_CN0, IGSO_MAX_CN0, 20f..60f)
-    object MEO : OrbitType(MEO_MIN_CN0, MEO_MAX_CN0, 0f..90f)
-}
-
-data class BDSSatellite(
-    val prn: Int,
-    val type: OrbitType,
-)
+// 稳定星座状态（root 模式，每 ~90s 重新洗牌）
+@Volatile private var gnssConstellation: IntArray? = null
+@Volatile private var gnssSvid: IntArray? = null
+@Volatile private var gnssCarrierFreq: FloatArray? = null
+@Volatile private var gnssBaseCn0: FloatArray? = null
+@Volatile private var gnssElev: FloatArray? = null
+@Volatile private var gnssAz: FloatArray? = null
+@Volatile private var gnssUsedInFix: BooleanArray? = null
+private var gnssLastReshuffle = 0L
+private val gnssLock = Any()
 
 data class MockGnssData(
     val svCount: Int,
@@ -153,100 +64,126 @@ data class MockGnssData(
     val carrierFreqs: FloatArray
 )
 
-private fun buildMockGnssData(): MockGnssData {
-    val svCount = Random.nextInt(FakeLoc.minSatellites, MAX_SATELLITES + 1)
-    val svidWithFlags = IntArray(svCount)
-    val cn0s = FloatArray(svCount)
-    val elevations = FloatArray(svCount)
-    val azimuths = FloatArray(svCount)
-    val carrierFreqs = FloatArray(svCount)
+private fun ensureConstellation() {
+    val now = System.currentTimeMillis()
+    synchronized(gnssLock) {
+        if (gnssSvid != null && (now - gnssLastReshuffle) < 90000L) return
+        gnssLastReshuffle = now
 
-    val selectedSatellites = satelliteList.shuffled().take(svCount)
+        val gpsCount = 8 + Random.nextInt(5)
+        val bdsCount = 9 + Random.nextInt(6)
+        val total = gpsCount + bdsCount
 
-    selectedSatellites.forEachIndexed { index, sat ->
-        val hasEphemeris = Random.nextFloat() > 0.1f
-        val hasAlmanac = Random.nextFloat() > 0.05f
-        val usedInFix = Random.nextFloat() > 0.3f
-        val hasCarrierFreq = true
-        val hasBasebandCn0 = true
+        val cons = IntArray(total)
+        val svid = IntArray(total)
+        val carrier = FloatArray(total)
+        val baseCn0 = FloatArray(total)
+        val elev = FloatArray(total)
+        val az = FloatArray(total)
+        val used = BooleanArray(total)
 
-        var flags = GnssFlags.SVID_FLAGS_NONE
-        if (hasEphemeris) flags = flags or GnssFlags.SVID_FLAGS_HAS_EPHEMERIS_DATA
-        if (hasAlmanac) flags = flags or GnssFlags.SVID_FLAGS_HAS_ALMANAC_DATA
-        if (usedInFix) flags = flags or GnssFlags.SVID_FLAGS_USED_IN_FIX
-        if (hasCarrierFreq) flags = flags or GnssFlags.SVID_FLAGS_HAS_CARRIER_FREQUENCY
-        if (hasBasebandCn0) flags = flags or GnssFlags.SVID_FLAGS_HAS_BASEBAND_CN0
-
-        svidWithFlags[index] = (sat.prn shl GnssFlags.SVID_SHIFT_WIDTH) or
-                ((GnssFlags.CONSTELLATION_BEIDOU and GnssFlags.CONSTELLATION_TYPE_MASK) shl GnssFlags.CONSTELLATION_TYPE_SHIFT_WIDTH) or
-                flags
-
-        cn0s[index] = when (sat.type) {
-            is OrbitType.GEO -> Random.nextFloat(GEO_MIN_CN0, GEO_MAX_CN0)
-            is OrbitType.IGSO -> Random.nextFloat(IGSO_MIN_CN0, IGSO_MAX_CN0)
-            is OrbitType.MEO -> Random.nextFloat(MEO_MIN_CN0, MEO_MAX_CN0)
+        val usedGps = HashSet<Int>()
+        val usedBds = HashSet<Int>()
+        var idx = 0
+        for (i in 0 until gpsCount) {
+            var s: Int; var guard = 0
+            do { s = 1 + Random.nextInt(32) } while (!usedGps.add(s) && ++guard < 64)
+            cons[idx] = CONSTELLATION_GPS; svid[idx] = s; carrier[idx] = GPS_L1_FREQ
+            baseCn0[idx] = 22f + Random.nextFloat() * 20f
+            elev[idx] = 5f + Random.nextFloat() * 80f
+            az[idx] = Random.nextFloat() * 360f
+            used[idx] = i < gpsCount - 2
+            idx++
         }
-        elevations[index] = Random.nextFloat(sat.type.elevationRange.start, sat.type.elevationRange.endInclusive)
-        azimuths[index] = Random.nextFloat(0f, 360f)
-        carrierFreqs[index] = when (Random.nextInt(3)) {
-            0 -> BDS_B1I_FREQ
-            1 -> BDS_B2I_FREQ
-            else -> BDS_B3I_FREQ
+        for (i in 0 until bdsCount) {
+            var s: Int; var guard = 0
+            do { s = 1 + Random.nextInt(63) } while (!usedBds.add(s) && ++guard < 128)
+            cons[idx] = CONSTELLATION_BEIDOU; svid[idx] = s; carrier[idx] = BDS_B1I_FREQ
+            baseCn0[idx] = 22f + Random.nextFloat() * 20f
+            elev[idx] = 5f + Random.nextFloat() * 80f
+            az[idx] = Random.nextFloat() * 360f
+            used[idx] = i < bdsCount - 2
+            idx++
         }
+
+        gnssConstellation = cons
+        gnssSvid = svid
+        gnssCarrierFreq = carrier
+        gnssBaseCn0 = baseCn0
+        gnssElev = elev
+        gnssAz = az
+        gnssUsedInFix = used
     }
-
-    return MockGnssData(
-        svCount = svCount,
-        svidWithFlags = svidWithFlags,
-        cn0s = cn0s,
-        elevations = elevations,
-        azimuths = azimuths,
-        carrierFreqs = carrierFreqs
-    )
 }
 
+private fun buildMockGnssData(): MockGnssData {
+    ensureConstellation()
+    synchronized(gnssLock) {
+        val n = gnssSvid!!.size
+        val svidWithFlags = IntArray(n)
+        val cn0s = FloatArray(n)
+        val elevations = FloatArray(n)
+        val azimuths = FloatArray(n)
+        val carrierFreqs = FloatArray(n)
+
+        for (i in 0 until n) {
+            var cn0 = gnssBaseCn0!![i] + (Random.nextFloat() * 6f - 3f)
+            if (cn0 < 8f) cn0 = 8f
+            if (cn0 > 48f) cn0 = 48f
+            gnssBaseCn0!![i] += (Random.nextFloat() * 1.0f - 0.5f)
+            if (gnssBaseCn0!![i] < 18f) gnssBaseCn0!![i] = 18f
+            if (gnssBaseCn0!![i] > 44f) gnssBaseCn0!![i] = 44f
+
+            var elev = gnssElev!![i] + (Random.nextFloat() * 1.0f - 0.5f)
+            if (elev < 5f) elev = 5f
+            if (elev > 89f) elev = 89f
+            gnssElev!![i] = elev
+
+            var a = gnssAz!![i] + (Random.nextFloat() * 1.0f - 0.5f)
+            if (a < 0f) a += 360f
+            if (a >= 360f) a -= 360f
+            gnssAz!![i] = a
+
+            var flags = (1 shl 0) or (1 shl 1) or (1 shl 2) or (1 shl 3) or (1 shl 4)
+            if (!gnssUsedInFix!![i]) flags = flags and (1 shl 2).inv()
+
+            svidWithFlags[i] = (gnssSvid!![i] shl SVID_SHIFT_WIDTH) or
+                    ((gnssConstellation!![i] and CONSTELLATION_TYPE_MASK) shl CONSTELLATION_TYPE_SHIFT_WIDTH) or
+                    flags
+
+            cn0s[i] = cn0
+            elevations[i] = elev
+            azimuths[i] = a
+            carrierFreqs[i] = gnssCarrierFreq!![i]
+        }
+
+        return MockGnssData(
+            svCount = n,
+            svidWithFlags = svidWithFlags,
+            cn0s = cn0s,
+            elevations = elevations,
+            azimuths = azimuths,
+            carrierFreqs = carrierFreqs
+        )
+    }
+}
+
+@Suppress("unused")
 private fun buildGnssStatusObject(mockGps: MockGnssData): Any? {
     return runCatching {
-        val cGnssStatus = Class.forName("android.location.GnssStatus")
-        val constructor = cGnssStatus.declaredConstructors.firstOrNull { ctor ->
-            when (ctor.parameterTypes.size) {
-                5, 6, 7, 8 -> {
-                    ctor.parameterTypes.getOrNull(0) == Int::class.javaPrimitiveType &&
-                    ctor.parameterTypes.getOrNull(1) == IntArray::class.java &&
-                    ctor.parameterTypes.getOrNull(2) == FloatArray::class.java &&
-                    ctor.parameterTypes.getOrNull(3) == FloatArray::class.java &&
-                    ctor.parameterTypes.getOrNull(4) == FloatArray::class.java
-                }
-                else -> false
-            }
-        }?.also { it.isAccessible = true }
-
-        if (constructor == null) {
-            KailLog.e(null, "Kail_Xposed", "GnssStatus constructor not found")
-            return null
+        val b = android.location.GnssStatus.Builder()
+        for (i in 0 until mockGps.svCount) {
+            val svid = mockGps.svidWithFlags[i] shr SVID_SHIFT_WIDTH
+            val consType = (mockGps.svidWithFlags[i] shr CONSTELLATION_TYPE_SHIFT_WIDTH) and CONSTELLATION_TYPE_MASK
+            val used = (mockGps.svidWithFlags[i] and (1 shl 2)) != 0
+            val cn0 = if (i < mockGps.cn0s.size) mockGps.cn0s[i] else 25f
+            val elev = if (i < mockGps.elevations.size) mockGps.elevations[i] else 30f
+            val az = if (i < mockGps.azimuths.size) mockGps.azimuths[i] else 180f
+            val cf = if (i < mockGps.carrierFreqs.size && mockGps.carrierFreqs[i] > 0) mockGps.carrierFreqs[i] else GPS_L1_FREQ
+            val bb = Math.max(0f, cn0 - (1f + Random.nextFloat() * 2f))
+            b.addSatellite(consType, svid, cn0, elev, az, true, true, used, true, cf, true, bb)
         }
-
-        val args = mutableListOf<Any>()
-        args.add(mockGps.svCount)
-        args.add(mockGps.svidWithFlags)
-        args.add(mockGps.cn0s)
-        args.add(mockGps.elevations)
-        args.add(mockGps.azimuths)
-
-        when (constructor.parameterTypes.size) {
-            6 -> args.add(mockGps.carrierFreqs)
-            7 -> {
-                args.add(mockGps.carrierFreqs)
-                args.add(FloatArray(mockGps.svCount) { mockGps.cn0s[it] - Random.nextFloat(2f, 5f) })
-            }
-            8 -> {
-                args.add(mockGps.carrierFreqs)
-                args.add(FloatArray(mockGps.svCount) { mockGps.cn0s[it] - Random.nextFloat(2f, 5f) })
-                args.add(FloatArray(mockGps.svCount))
-            }
-        }
-
-        constructor.newInstance(*args.toTypedArray())
+        b.build()
     }.onFailure {
         KailLog.e(null, "Kail_Xposed", "buildGnssStatusObject failed: ${it.message}")
     }.getOrNull()

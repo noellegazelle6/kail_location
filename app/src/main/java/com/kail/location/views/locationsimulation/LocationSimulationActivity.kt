@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -22,6 +23,8 @@ import com.kail.location.views.navigationsimulation.NavigationSimulationActivity
 import com.kail.location.utils.GoUtils
 import com.kail.location.views.common.AnnouncementDialog
 import com.kail.location.views.common.UpdateDownloadDialog
+import com.kail.location.repositories.DataBaseHistoryLocation
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.LaunchedEffect
 
 
@@ -32,6 +35,20 @@ import androidx.compose.runtime.LaunchedEffect
 class LocationSimulationActivity : BaseActivity() {
 
     private val viewModel: LocationSimulationViewModel by viewModels()
+
+    private val locationPickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data
+            if (data != null) {
+                val lat = data.getDoubleExtra(LocationPickerActivity.RESULT_LAT, 0.0)
+                val lng = data.getDoubleExtra(LocationPickerActivity.RESULT_LNG, 0.0)
+                val name = data.getStringExtra(LocationPickerActivity.RESULT_NAME) ?: "Unknown"
+                if (lat != 0.0 || lng != 0.0) {
+                    viewModel.setLocationInfo(name, lat, lng)
+                }
+            }
+        }
+    }
 
     companion object {
         private const val LOCATION_PERMISSION_REQUEST = 2001
@@ -68,6 +85,12 @@ class LocationSimulationActivity : BaseActivity() {
                     viewModel.checkAnnouncement()
                 }
 
+                LaunchedEffect(Unit) {
+                    DataBaseHistoryLocation.refreshSignal.collectLatest {
+                        viewModel.loadRecords()
+                    }
+                }
+
                 LocationSimulationScreen(
                     locationInfo = locationInfo,
                     isSimulating = isSimulating,
@@ -79,23 +102,22 @@ class LocationSimulationActivity : BaseActivity() {
                     selectedRecordId = selectedRecordId,
                     onToggleSimulation = viewModel::toggleSimulation,
                     onJoystickToggle = viewModel::setJoystickEnabled,
+                    onMoveFavUp = { id -> viewModel.moveFavorite(id, up = true) },
+                    onMoveFavDown = { id -> viewModel.moveFavorite(id, up = false) },
+                    onSetFavoriteOrder = { ids -> viewModel.setFavoriteOrder(ids) },
                     onStepSimulationToggle = viewModel::setStepSimulationEnabled,
                     onStepCadenceChange = viewModel::setStepCadenceSpm,
                     onRecordSelect = viewModel::selectRecord,
                     onRecordDelete = viewModel::deleteRecord,
                     onRecordRename = viewModel::renameRecord,
+                    onToggleFavorite = viewModel::toggleFavorite,
                     runMode = runMode,
                     onRunModeChange = { viewModel.setRunMode(it) },
                     onDeveloperModeSelected = {
                         if (GoUtils.isAllowMockLocation(this)) {
                             viewModel.setRunMode("developer")
                         } else {
-                            try {
-                                val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-                                startActivity(intent)
-                            } catch (e: Exception) {
-                                android.widget.Toast.makeText(this, getString(R.string.app_error_dev), android.widget.Toast.LENGTH_SHORT).show()
-                            }
+                            GoUtils.openMockLocationSettings(this)
                         }
                     },
                     onXposedSettingsSelected = {
@@ -165,7 +187,9 @@ class LocationSimulationActivity : BaseActivity() {
                         }
                     },
                     onAddLocation = {
-                        startActivity(Intent(this, LocationPickerActivity::class.java))
+                        locationPickerLauncher.launch(Intent(this, LocationPickerActivity::class.java).apply {
+                            putExtra(LocationPickerActivity.EXTRA_PICK_MODE, true)
+                        })
                     },
                     appVersion = version,
                     onCheckUpdate = { viewModel.checkUpdate(this@LocationSimulationActivity) }

@@ -22,7 +22,7 @@
             android:value="基于 Xposed 实现虚拟位置定位服务" />
         <meta-data
             android:name="xposedminversion"
-            android:value="93" />
+                            android:value="101" />
         <meta-data
             android:name="xposedscope"
             android:resource="@array/xposed_scope" />

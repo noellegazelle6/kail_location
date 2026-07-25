@@ -5,6 +5,12 @@ import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.core.content.FileProvider
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
+import java.io.FileOutputStream
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -15,9 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kail.location.R
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,9 +76,56 @@ fun AppDrawer(
         }
     }
 
-    fun openXposedDownloadPage() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/noellegazelle6/kail_location/releases"))
-        context.startActivity(intent)
+    var xposedDownloadProgress by remember { mutableStateOf(-1) }
+    var xposedInstallUri by remember { mutableStateOf<Uri?>(null) }
+
+    LaunchedEffect(xposedInstallUri) {
+        if (xposedInstallUri != null) {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(xposedInstallUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(intent)
+            xposedInstallUri = null
+        }
+    }
+
+    fun downloadAndInstallXposed() {
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                withContext(kotlinx.coroutines.Dispatchers.Main) { xposedDownloadProgress = 0 }
+                val url = "https://github.com/noellegazelle6/kail_location/releases/download/v$appVersion/KailLocationXposed.apk"
+                val client = OkHttpClient()
+                val request = Request.Builder().url(url).build()
+                val response = client.newCall(request).execute()
+                val body = response.body ?: return@launch
+                val total = body.contentLength()
+                val dir = File(context.getExternalFilesDir(null), "Updates")
+                dir.mkdirs()
+                val outFile = File(dir, "KailLocationXposed.apk")
+                val input = body.byteStream()
+                val output = FileOutputStream(outFile)
+                val buffer = ByteArray(8192)
+                var sum = 0L
+                var read: Int
+                while (input.read(buffer).also { read = it } != -1) {
+                    output.write(buffer, 0, read)
+                    sum += read
+                    if (total > 0) {
+                        val pct = ((sum * 100) / total).toInt().coerceIn(0, 100)
+                        withContext(kotlinx.coroutines.Dispatchers.Main) { xposedDownloadProgress = pct }
+                    }
+                }
+                output.flush(); output.close(); input.close()
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileProvider", outFile)
+                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    xposedDownloadProgress = -1
+                    xposedInstallUri = uri
+                }
+            } catch (_: Exception) {
+                withContext(kotlinx.coroutines.Dispatchers.Main) { xposedDownloadProgress = -1 }
+            }
+        }
     }
 
     suspend fun closeDrawerSmooth() {
@@ -180,7 +236,7 @@ fun AppDrawer(
         )
     }
 
-    if (showXposedDownloadDialog) {
+    if (showXposedDownloadDialog && xposedDownloadProgress < 0) {
         AlertDialog(
             onDismissRequest = { showXposedDownloadDialog = false },
             title = { Text(stringResource(R.string.xposed_module_not_found)) },
@@ -193,11 +249,28 @@ fun AppDrawer(
             confirmButton = {
                 TextButton(onClick = {
                     showXposedDownloadDialog = false
-                    openXposedDownloadPage()
+                    downloadAndInstallXposed()
                 }) {
                     Text(stringResource(R.string.xposed_module_download))
                 }
             }
+        )
+    }
+
+    if (xposedDownloadProgress >= 0) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.xposed_module_download)) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.xposed_module_download_hint))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LinearProgressIndicator(progress = { xposedDownloadProgress / 100f }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("$xposedDownloadProgress%", fontSize = 12.sp, color = Color.Gray)
+                }
+            },
+            confirmButton = {}
         )
     }
 

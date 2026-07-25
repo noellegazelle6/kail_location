@@ -1,5 +1,6 @@
 package com.kail.location.views.cellsimulation
 
+import com.kail.location.utils.GoUtils
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -86,8 +87,12 @@ fun CellSimulationScreen(
                     appPrefs.edit().putString("setting_run_mode", mode).apply()
                 },
                 onDeveloperModeSelected = {
-                    runMode = "developer"
-                    appPrefs.edit().putString("setting_run_mode", "developer").apply()
+                    if (GoUtils.isAllowMockLocation(cellContext)) {
+                        runMode = "developer"
+                        appPrefs.edit().putString("setting_run_mode", "developer").apply()
+                    } else {
+                        GoUtils.openMockLocationSettings(cellContext)
+                    }
                 },
                 scope = scope
             )

@@ -376,37 +376,33 @@ fun SandboxAppItem(
                 Text(stringResource(R.string.sandbox_create_shortcut), fontSize = 12.sp)
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Row(
+            OutlinedButton(
+                onClick = onClearData,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                shape = RoundedCornerShape(8.dp)
             ) {
-                OutlinedButton(
-                    onClick = onClearData,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Clear,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.sandbox_clear_data_btn), fontSize = 12.sp)
-                }
-                OutlinedButton(
-                    onClick = onDeleteApp,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = Color.Red
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.sandbox_uninstall_btn), fontSize = 12.sp, color = Color.Red)
-                }
+                Icon(
+                    Icons.Default.Clear,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(stringResource(R.string.sandbox_clear_data_btn), fontSize = 12.sp)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = onDeleteApp,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = Color.Red
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(stringResource(R.string.sandbox_uninstall_btn), fontSize = 12.sp, color = Color.Red)
             }
         }
     }

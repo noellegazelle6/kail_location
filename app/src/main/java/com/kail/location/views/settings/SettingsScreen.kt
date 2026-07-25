@@ -266,28 +266,8 @@ fun SettingsScreen(
                 summary = stringResource(R.string.setting_natural_jitter_summary)
             )
 
-            // ===== Group: 日志/其他 =====
-            PreferenceCategory(title = stringResource(R.string.setting_group_other))
-
-            SwitchPreference(
-                title = stringResource(R.string.setting_selinux_permissive),
-                checked = selinuxPermissiveEnabled,
-                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_SELINUX_PERMISSIVE, it) },
-                summary = stringResource(R.string.setting_selinux_permissive_summary)
-            )
-
-            EditTextPreference(
-                title = stringResource(R.string.setting_baidu_key),
-                value = baiduMapKey,
-                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_BAIDU_MAP_KEY, it) }
-            )
-
-            EditTextPreference(
-                title = stringResource(R.string.setting_opencellid_key),
-                value = opencellidApiKey,
-                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_OPENCELLID_API_KEY, it) },
-                description = stringResource(R.string.setting_opencellid_key_summary)
-            )
+            // ===== Group: 日志 =====
+            PreferenceCategory(title = stringResource(R.string.setting_group_log))
 
             SwitchPreference(
                 title = stringResource(R.string.setting_enable_log),
@@ -318,17 +298,33 @@ fun SettingsScreen(
                 }
             )
 
+            // ===== Group: 其他 =====
+            PreferenceCategory(title = stringResource(R.string.setting_group_other))
+
+            SwitchPreference(
+                title = stringResource(R.string.setting_selinux_permissive),
+                checked = selinuxPermissiveEnabled,
+                onCheckedChange = { viewModel.updateBooleanPreference(SettingsViewModel.KEY_SELINUX_PERMISSIVE, it) },
+                summary = stringResource(R.string.setting_selinux_permissive_summary)
+            )
+
+            EditTextPreference(
+                title = stringResource(R.string.setting_baidu_key),
+                value = baiduMapKey,
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_BAIDU_MAP_KEY, it) }
+            )
+
+            EditTextPreference(
+                title = stringResource(R.string.setting_opencellid_key),
+                value = opencellidApiKey,
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_OPENCELLID_API_KEY, it) },
+                description = stringResource(R.string.setting_opencellid_key_summary)
+            )
+
             EditTextPreference(
                 title = stringResource(R.string.setting_history_expiration),
                 value = historyExpiration,
                 onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_HISTORY_EXPIRATION, it) }
-            )
-
-            EditTextPreference(
-                title = stringResource(R.string.setting_map_zoom),
-                value = mapZoom,
-                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_MAP_ZOOM, it) },
-                description = stringResource(R.string.setting_map_zoom_summary)
             )
 
             // ===== Group: 数据备份 =====
@@ -344,6 +340,24 @@ fun SettingsScreen(
                 title = stringResource(R.string.setting_import_data),
                 summary = stringResource(R.string.setting_import_data_summary),
                 onClick = { pickBackupLauncher.launch(arrayOf("*/*")) }
+            )
+
+            // ===== Group: 个性化 =====
+            PreferenceCategory(title = stringResource(R.string.setting_group_personalization))
+
+            SizePreference(
+                title = stringResource(R.string.setting_floating_window_size),
+                width = viewModel.floatingWindowWidth.collectAsState().value,
+                height = viewModel.floatingWindowHeight.collectAsState().value,
+                onWidthChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_FLOATING_WINDOW_WIDTH, it) },
+                onHeightChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_FLOATING_WINDOW_HEIGHT, it) }
+            )
+
+            EditTextPreference(
+                title = stringResource(R.string.setting_map_zoom),
+                value = viewModel.mapZoom.collectAsState().value,
+                onValueChange = { viewModel.updateStringPreference(SettingsViewModel.KEY_MAP_ZOOM, it) },
+                description = stringResource(R.string.setting_map_zoom_summary)
             )
 
             ListItem(
@@ -653,6 +667,67 @@ fun EditTextPreference(
                 TextButton(onClick = { showDialog = false }) {
                     Text(stringResource(R.string.setting_cancel))
                 }
+            }
+        )
+    }
+}
+
+/**
+ * 浮窗大小设置项组件（弹窗含宽/高两个输入框）
+ */
+@Composable
+fun SizePreference(
+    title: String,
+    width: String,
+    height: String,
+    onWidthChange: (String) -> Unit,
+    onHeightChange: (String) -> Unit
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    var tempW by remember { mutableStateOf(width) }
+    var tempH by remember { mutableStateOf(height) }
+
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text("${width} x ${height}") },
+        modifier = Modifier.clickable { tempW = width; tempH = height; showDialog = true }
+    )
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text(title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = tempW,
+                        onValueChange = { tempW = it },
+                        label = { Text(stringResource(R.string.setting_floating_window_width)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = tempH,
+                        onValueChange = { tempH = it },
+                        label = { Text(stringResource(R.string.setting_floating_window_height)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (tempW.isNotBlank() && tempH.isNotBlank()) {
+                        onWidthChange(tempW)
+                        onHeightChange(tempH)
+                    }
+                    showDialog = false
+                }) { Text(stringResource(R.string.setting_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) { Text(stringResource(R.string.setting_cancel)) }
             }
         )
     }

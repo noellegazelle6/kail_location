@@ -361,9 +361,28 @@ fun MapControlButton(iconRes: Int, onClick: () -> Unit) {
 
 @Composable
 fun LocationInputDialog(onDismiss: () -> Unit, onConfirm: (Double, Double, Boolean) -> Unit) {
+    var combinedStr by remember { mutableStateOf("") }
     var latStr by remember { mutableStateOf("") }
     var lngStr by remember { mutableStateOf("") }
     var isBd09 by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+    val coordErrorStr = stringResource(R.string.route_plan_coord_error)
+
+    fun parseCombined(input: String) {
+        if (input.contains(",") || input.contains("，")) {
+            val parts = input.split(",|，".toRegex()).map { it.trim() }.filter { it.isNotEmpty() }
+            if (parts.size >= 2) {
+                val lat = parts[0].toDoubleOrNull()
+                val lng = parts[1].toDoubleOrNull()
+                if (lat != null && lng != null) {
+                    latStr = parts[0]
+                    lngStr = parts[1]
+                    errorMsg = null
+                    return
+                }
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -371,22 +390,44 @@ fun LocationInputDialog(onDismiss: () -> Unit, onConfirm: (Double, Double, Boole
         text = {
             Column {
                 OutlinedTextField(
-                    value = latStr,
-                    onValueChange = { latStr = it },
-                    label = { Text(stringResource(R.string.route_plan_latitude)) },
+                    value = combinedStr,
+                    onValueChange = {
+                        combinedStr = it
+                        parseCombined(it)
+                    },
+                    label = { Text(stringResource(R.string.route_plan_coord_combined)) },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
+                    value = latStr,
+                    onValueChange = {
+                        latStr = it
+                        combinedStr = ""
+                    },
+                    label = { Text(stringResource(R.string.route_plan_latitude)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
                     value = lngStr,
-                    onValueChange = { lngStr = it },
+                    onValueChange = {
+                        lngStr = it
+                        combinedStr = ""
+                    },
                     label = { Text(stringResource(R.string.route_plan_longitude)) },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = isBd09, onCheckedChange = { isBd09 = it })
                     Text(stringResource(R.string.route_plan_coord_type))
+                }
+                if (errorMsg != null) {
+                    Text(errorMsg!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -396,6 +437,8 @@ fun LocationInputDialog(onDismiss: () -> Unit, onConfirm: (Double, Double, Boole
                 val lng = lngStr.toDoubleOrNull()
                 if (lat != null && lng != null) {
                     onConfirm(lat, lng, isBd09)
+                } else {
+                    errorMsg = coordErrorStr
                 }
             }) {
                 Text(stringResource(R.string.route_plan_ok))

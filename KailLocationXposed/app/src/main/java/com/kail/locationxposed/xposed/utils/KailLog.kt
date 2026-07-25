@@ -162,7 +162,10 @@ object KailLog {
         for (i in 2 until stackTrace.size) {
             val frame = stackTrace[i]
             if (frame.className != KailLog::class.java.name && !frame.className.contains("java.lang.Thread")) {
-                val fileName = callerCache.getOrPut(frame.className) { frame.fileName ?: "Unknown" }
+                val fileName = callerCache.getOrPut(frame.className) {
+                    val fn = frame.fileName
+                    if (fn == null || fn.startsWith("r8-")) frame.className.substringAfterLast('.') + ".java" else fn
+                }
                 val line = frame.lineNumber
                 return if (line > 0) "$fileName:$line#${frame.methodName}" else "$fileName#${frame.methodName}"
             }

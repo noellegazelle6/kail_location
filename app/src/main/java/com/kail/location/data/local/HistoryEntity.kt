@@ -12,5 +12,6 @@ data class HistoryEntity(
     val startLng: Double,
     val endLat: Double,
     val endLng: Double,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isFavorite: Boolean = false
 )

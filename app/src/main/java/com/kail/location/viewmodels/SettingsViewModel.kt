@@ -66,6 +66,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_HISTORY_EXPIRATION = "setting_history_expiration"
         const val KEY_BAIDU_MAP_KEY = "setting_baidu_map_key"
         const val KEY_MAP_ZOOM = "setting_map_zoom"
+        const val KEY_FLOATING_WINDOW_WIDTH = "setting_floating_window_width"
+        const val KEY_FLOATING_WINDOW_HEIGHT = "setting_floating_window_height"
         const val KEY_SIM_SCHEME = "setting_sim_scheme"
         const val KEY_STEP_SIM_ENABLED = "setting_step_sim_enabled"
 
@@ -197,6 +199,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _selinuxPermissiveEnabled = MutableStateFlow(prefs.getBoolean(KEY_SELINUX_PERMISSIVE, false))
     val selinuxPermissiveEnabled: StateFlow<Boolean> = _selinuxPermissiveEnabled.asStateFlow()
 
+    private val _floatingWindowWidth = MutableStateFlow(prefs.getString(KEY_FLOATING_WINDOW_WIDTH, "300") ?: "300")
+    val floatingWindowWidth: StateFlow<String> = _floatingWindowWidth.asStateFlow()
+    private val _floatingWindowHeight = MutableStateFlow(prefs.getString(KEY_FLOATING_WINDOW_HEIGHT, "500") ?: "500")
+    val floatingWindowHeight: StateFlow<String> = _floatingWindowHeight.asStateFlow()
+
     /** 应用版本号（字符串）。 */
     val appVersion: String = GoUtils.getVersionName(application)
 
@@ -241,6 +248,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_GLOBAL_MODE -> _globalMode.value = sharedPreferences.getBoolean(key, true)
             KEY_TARGET_PACKAGES -> _targetPackages.value = sharedPreferences.getString(key, "com.autonavi.minimap") ?: "com.autonavi.minimap"
             KEY_SELINUX_PERMISSIVE -> _selinuxPermissiveEnabled.value = sharedPreferences.getBoolean(key, false)
+            KEY_FLOATING_WINDOW_WIDTH -> _floatingWindowWidth.value = sharedPreferences.getString(key, "300") ?: "300"
+            KEY_FLOATING_WINDOW_HEIGHT -> _floatingWindowHeight.value = sharedPreferences.getString(key, "500") ?: "500"
         }
     }
 

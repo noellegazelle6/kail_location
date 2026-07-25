@@ -20,6 +20,8 @@ import com.kail.location.sandbox.SandboxStepConfig
 import com.kail.location.viewmodels.JoystickViewModel
 import com.kail.location.views.joystick.JoystickWindowManager
 import com.kail.location.views.locationpicker.LocationPickerActivity
+import top.niunaijun.blackbox.entity.location.BSensorConfig
+import top.niunaijun.blackbox.fake.frameworks.BLocationManager
 import kotlin.math.cos
 
 /**
@@ -108,21 +110,23 @@ class ServiceGoSandbox : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        KailLog.i(this, "ServiceGoSandbox", "onCreate started")
+        KailLog.i(this, "[sandbox] ServiceGoSandbox", "onCreate started (process=${android.os.Process.myPid()})")
         try {
             mNotificationHelper.initAndStartForeground()
         } catch (e: Throwable) {
-            KailLog.e(this, "ServiceGoSandbox", "Error in initNotification: ${e.message}")
+            KailLog.e(this, "[sandbox] ServiceGoSandbox", "initNotification failed: ${e.message}")
         }
         try {
             mLocManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            KailLog.i(this, "[sandbox] ServiceGoSandbox", "LocationManager obtained")
         } catch (e: Throwable) {
-            KailLog.e(this, "ServiceGoSandbox", "Error in LocationManager init: ${e.message}")
+            KailLog.e(this, "[sandbox] ServiceGoSandbox", "LocationManager init failed: ${e.message}")
         }
         try {
             initGoLocation()
+            KailLog.i(this, "[sandbox] ServiceGoSandbox", "HandlerThread started: $SERVICE_GO_HANDLER_NAME")
         } catch (e: Throwable) {
-            KailLog.e(this, "ServiceGoSandbox", "Error in initGoLocation: ${e.message}")
+            KailLog.e(this, "[sandbox] ServiceGoSandbox", "initGoLocation failed: ${e.message}")
         }
         try {
             val prefs = PreferenceManager.getDefaultSharedPreferences(this)
@@ -131,29 +135,33 @@ class ServiceGoSandbox : Service() {
             if (joystickEnabledPref) {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
                     mJoystickManager.show()
+                    KailLog.i(this, "[sandbox] ServiceGoSandbox", "Joystick shown (pref enabled)")
                 }
             } else {
                 mJoystickManager.hide()
             }
         } catch (e: Throwable) {
-            KailLog.e(this, "ServiceGoSandbox", "Error initializing JoyStick: ${e.message}")
+            KailLog.e(this, "[sandbox] ServiceGoSandbox", "Joystick init failed: ${e.message}")
             GoUtils.DisplayToast(applicationContext, getString(R.string.service_overlay_failed, e.message))
         }
-        KailLog.i(this, "ServiceGoSandbox", "onCreate finished")
+        KailLog.i(this, "[sandbox] ServiceGoSandbox", "onCreate finished")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        KailLog.i(this, "[sandbox] ServiceGoSandbox", "onStartCommand flags=$flags startId=$startId intent=$intent")
         if (intent != null) {
             val ctrl = intent.getStringExtra(EXTRA_CONTROL_ACTION)
             if (!ctrl.isNullOrBlank()) {
+                KailLog.i(this, "[sandbox] ServiceGoSandbox", "onStartCommand controlAction=$ctrl")
                 when (ctrl) {
                     CONTROL_PAUSE -> {
                         try {
                             isStop = true
                             mJoystickManager.setRoutePauseState(true)
                             broadcastStatus()
+                            KailLog.i(this, "[sandbox] ServiceGoSandbox", "CONTROL_PAUSE done")
                         } catch (e: Exception) {
-                            KailLog.log(this, "ServiceGoSandbox", "Pause error: ${e.message}", isHighFrequency = false)
+                            KailLog.e(this, "[sandbox] ServiceGoSandbox", "CONTROL_PAUSE error: ${e.message}")
                         }
                         return super.onStartCommand(intent, flags, startId)
                     }
@@ -162,8 +170,9 @@ class ServiceGoSandbox : Service() {
                             isStop = false
                             mJoystickManager.setRoutePauseState(false)
                             broadcastStatus()
+                            KailLog.i(this, "[sandbox] ServiceGoSandbox", "CONTROL_RESUME done")
                         } catch (e: Exception) {
-                            KailLog.log(this, "ServiceGoSandbox", "Resume error: ${e.message}", isHighFrequency = false)
+                            KailLog.e(this, "[sandbox] ServiceGoSandbox", "CONTROL_RESUME error: ${e.message}")
                         }
                         return super.onStartCommand(intent, flags, startId)
                     }
@@ -171,8 +180,9 @@ class ServiceGoSandbox : Service() {
                         try {
                             stopSelf()
                             broadcastStatus()
+                            KailLog.i(this, "[sandbox] ServiceGoSandbox", "CONTROL_STOP -> stopSelf()")
                         } catch (e: Exception) {
-                            KailLog.e(this, "ServiceGoSandbox", "stop error: ${e.message}")
+                            KailLog.e(this, "[sandbox] ServiceGoSandbox", "CONTROL_STOP error: ${e.message}")
                         }
                         return super.onStartCommand(intent, flags, startId)
                     }
@@ -183,23 +193,36 @@ class ServiceGoSandbox : Service() {
                         mCurLat = mRouteEngine.currentLat
                         mCurBea = mRouteEngine.currentBea
                         updateJoystickStatus()
+                        KailLog.i(this, "[sandbox] ServiceGoSandbox", "CONTROL_SEEK ratio=$ratio -> lat=$mCurLat lng=$mCurLng bea=$mCurBea")
                         return super.onStartCommand(intent, flags, startId)
                     }
                     CONTROL_SET_SPEED -> {
                         val kmh = intent.getFloatExtra(EXTRA_ROUTE_SPEED, (mSpeed * 3.6).toFloat())
                         mSpeed = kmh.toDouble() / 3.6
+                        KailLog.i(this, "[sandbox] ServiceGoSandbox", "CONTROL_SET_SPEED ${kmh}km/h -> ${mSpeed}m/s")
                         return super.onStartCommand(intent, flags, startId)
                     }
                     CONTROL_SET_SPEED_FLUCTUATION -> {
                         speedFluctuation = intent.getBooleanExtra(EXTRA_SPEED_FLUCTUATION, speedFluctuation)
+                        KailLog.i(this, "[sandbox] ServiceGoSandbox", "CONTROL_SET_SPEED_FLUCTUATION enabled=$speedFluctuation")
                         return super.onStartCommand(intent, flags, startId)
                     }
                     CONTROL_SET_STEP -> {
                         val stepEnabled = intent.getBooleanExtra(EXTRA_STEP_ENABLED, false)
                         val stepFreq = intent.getFloatExtra(EXTRA_STEP_FREQ, 120f)
                         SandboxStepConfig.writeConfig(this, stepEnabled, stepFreq)
-                        KailLog.i(this, "ServiceGoSandbox", "Step sim updated: enabled=$stepEnabled, freq=$stepFreq")
+                        try {
+                            BLocationManager.get().setGlobalSensorConfig(BSensorConfig(
+                                stepEnabled, stepFreq, false, 3.0f
+                            ))
+                        } catch (e: Exception) {
+                            KailLog.w(this, "[sandbox] ServiceGoSandbox", "BLocationManager.setGlobalSensorConfig failed: ${e.message}")
+                        }
+                        KailLog.i(this, "[sandbox] ServiceGoSandbox", "CONTROL_SET_STEP enabled=$stepEnabled freq=$stepFreq")
                         return super.onStartCommand(intent, flags, startId)
+                    }
+                    else -> {
+                        KailLog.w(this, "[sandbox] ServiceGoSandbox", "Unknown control action: $ctrl")
                     }
                 }
             }
@@ -211,29 +234,36 @@ class ServiceGoSandbox : Service() {
             val coordType = intent.getStringExtra(EXTRA_COORD_TYPE) ?: COORD_BD09
             mCurLng = intent.getDoubleExtra(LocationPickerActivity.LNG_MSG_ID, DEFAULT_LNG)
             mCurLat = intent.getDoubleExtra(LocationPickerActivity.LAT_MSG_ID, DEFAULT_LAT)
+            KailLog.i(this, "[sandbox] ServiceGoSandbox", "onStartCommand raw input: coordType=$coordType lat=$mCurLat lng=$mCurLng")
             try {
                 when (coordType) {
-                    COORD_WGS84 -> { /* keep */ }
+                    COORD_WGS84 -> { KailLog.i(this, "[sandbox] ServiceGoSandbox", "coord=WGS84, no conversion needed") }
                     COORD_GCJ02 -> {
                         val wgs = MapUtils.gcj02towgs84(mCurLng, mCurLat)
+                        KailLog.i(this, "[sandbox] ServiceGoSandbox", "GCJ02->WGS84: $mCurLng,$mCurLat -> ${wgs[0]},${wgs[1]}")
                         mCurLng = wgs[0]
                         mCurLat = wgs[1]
                     }
                     else -> {
                         val wgs = MapUtils.bd2wgs(mCurLng, mCurLat)
+                        KailLog.i(this, "[sandbox] ServiceGoSandbox", "BD09->WGS84: $mCurLng,$mCurLat -> ${wgs[0]},${wgs[1]}")
                         mCurLng = wgs[0]
                         mCurLat = wgs[1]
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                KailLog.e(this, "[sandbox] ServiceGoSandbox", "Coord conversion failed: ${e.message}")
+            }
             mCurAlt = intent.getDoubleExtra(LocationPickerActivity.ALT_MSG_ID, DEFAULT_ALT)
             val joystickEnabled = intent.getBooleanExtra(EXTRA_JOYSTICK_ENABLED, false)
             mSpeed = intent.getFloatExtra(EXTRA_ROUTE_SPEED, mSpeed.toFloat()).toDouble() / 3.6
+            KailLog.i(this, "[sandbox] ServiceGoSandbox", "Params: alt=$mCurAlt speed=${mSpeed}m/s joystickEnabled=$joystickEnabled")
 
             val routeArray = intent.getDoubleArrayExtra(EXTRA_ROUTE_POINTS)
             if (routeArray != null && routeArray.size >= 2) {
                 mRouteEngine.setupFromArray(routeArray, coordType)
                 mRouteEngine.setLoop(intent.getBooleanExtra(EXTRA_ROUTE_LOOP, false))
+                KailLog.i(this, "[sandbox] ServiceGoSandbox", "Route points loaded: ${routeArray.size} coords, active=${mRouteEngine.isActive}")
                 if (mRouteEngine.isActive) {
                     mCurLng = mRouteEngine.currentLng
                     mCurLat = mRouteEngine.currentLat
@@ -241,18 +271,28 @@ class ServiceGoSandbox : Service() {
                 }
             }
 
-            KailLog.i(this, "ServiceGoSandbox", "onStartCommand received lat=$mCurLat, lng=$mCurLng")
+            KailLog.i(this, "[sandbox] ServiceGoSandbox", "Final WGS84: lat=$mCurLat lng=$mCurLng alt=$mCurAlt bea=$mCurBea")
 
             if (this::mLocHandler.isInitialized) {
                 mLocHandler.post {
+                    KailLog.i(this, "[sandbox] ServiceGoSandbox", "Enabling global simulation and starting location loop...")
                     SandboxLocationHook.enableGlobalSimulation()
                     startLocationLoop()
                 }
+            } else {
+                KailLog.e(this, "[sandbox] ServiceGoSandbox", "mLocHandler not initialized, cannot start loop!")
             }
 
             val stepEnabled = intent.getBooleanExtra(EXTRA_STEP_ENABLED, false)
             val stepFreq = intent.getFloatExtra(EXTRA_STEP_FREQ, 120f)
             SandboxStepConfig.writeConfig(this, stepEnabled, stepFreq)
+            try {
+                BLocationManager.get().setGlobalSensorConfig(BSensorConfig(
+                    stepEnabled, stepFreq, false, 3.0f
+                ))
+            } catch (e: Exception) {
+                KailLog.w(this, "[sandbox] ServiceGoSandbox", "BLocationManager.setGlobalSensorConfig failed: ${e.message}")
+            }
 
             try {
                 mJoystickViewModel.setCurrentPosition(mCurLng, mCurLat, mCurAlt)
@@ -270,7 +310,7 @@ class ServiceGoSandbox : Service() {
                     mJoystickManager.hide()
                 }
             } catch (e: Exception) {
-                KailLog.e(this, "ServiceGoSandbox", "Error setting current position or showing joystick: ${e.message}")
+                KailLog.e(this, "[sandbox] ServiceGoSandbox", "Error setting current position or showing joystick: ${e.message}")
             }
         }
 
@@ -278,24 +318,34 @@ class ServiceGoSandbox : Service() {
     }
 
     override fun onDestroy() {
-        KailLog.i(this, "ServiceGoSandbox", "onDestroy started")
+        KailLog.i(this, "[sandbox] ServiceGoSandbox", "onDestroy started locationLoopStarted=$locationLoopStarted isStop=$isStop")
         try {
             broadcastStatusStopped()
             isStop = true
             locationLoopStarted = false
-            if (this::mLocHandler.isInitialized) mLocHandler.removeMessages(HANDLER_MSG_ID)
-            if (this::mLocHandlerThread.isInitialized) mLocHandlerThread.quit()
-            if (this::mJoystickManager.isInitialized) mJoystickManager.destroy()
+            if (this::mLocHandler.isInitialized) {
+                mLocHandler.removeMessages(HANDLER_MSG_ID)
+                KailLog.i(this, "[sandbox] ServiceGoSandbox", "Handler messages removed")
+            }
+            if (this::mLocHandlerThread.isInitialized) {
+                mLocHandlerThread.quit()
+                KailLog.i(this, "[sandbox] ServiceGoSandbox", "HandlerThread quit")
+            }
+            if (this::mJoystickManager.isInitialized) {
+                mJoystickManager.destroy()
+                KailLog.i(this, "[sandbox] ServiceGoSandbox", "Joystick destroyed")
+            }
 
             SandboxLocationHook.disableSimulation()
             SandboxStepConfig.clearConfig(this)
 
             mNotificationHelper.stopForeground()
+            KailLog.i(this, "[sandbox] ServiceGoSandbox", "Foreground stopped")
         } catch (e: Exception) {
-            KailLog.e(this, "ServiceGoSandbox", "Error in onDestroy: ${e.message}")
+            KailLog.e(this, "[sandbox] ServiceGoSandbox", "onDestroy error: ${e.message}")
         }
         super.onDestroy()
-        KailLog.i(this, "ServiceGoSandbox", "onDestroy finished")
+        KailLog.i(this, "[sandbox] ServiceGoSandbox", "onDestroy finished")
     }
 
     private fun broadcastStatusStopped() {
@@ -343,6 +393,13 @@ class ServiceGoSandbox : Service() {
         })
     }
 
+    private fun jitterLocation(): Pair<Double, Double> {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        if (!prefs.getBoolean("setting_natural_jitter", false)) return Pair(mCurLat, mCurLng)
+        val sigma = 2.5e-6
+        return Pair(mCurLat + (Math.random() * 2 - 1) * sigma, mCurLng + (Math.random() * 2 - 1) * sigma)
+    }
+
     private fun initGoLocation() {
         mLocHandlerThread = HandlerThread(SERVICE_GO_HANDLER_NAME, Process.THREAD_PRIORITY_FOREGROUND)
         mLocHandlerThread.start()
@@ -350,27 +407,35 @@ class ServiceGoSandbox : Service() {
             override fun handleMessage(msg: Message) {
                 try {
                     Thread.sleep(50)
-                    if (!isStop) {
-                        if (mRouteEngine.isActive) {
-                            val speedForStep = if (speedFluctuation) {
-                                GeoPredict.randomInRangeWithMean(mSpeed * 0.5, mSpeed * 1.5, mSpeed)
-                            } else {
-                                mSpeed
-                            }
-                            mRouteEngine.advance(speedForStep * 0.185)
-                            mCurLng = mRouteEngine.currentLng
-                            mCurLat = mRouteEngine.currentLat
-                            mCurBea = mRouteEngine.currentBea
-                            updateJoystickStatus()
-                        }
+                    if (isStop) {
+                        KailLog.v(this@ServiceGoSandbox, "[sandbox] ServiceGoSandbox", "handleMessage: paused (isStop=true)")
+                        sendEmptyMessage(HANDLER_MSG_ID)
+                        return
                     }
-                    SandboxLocationHook.updateLocation(mCurLat, mCurLng, mCurAlt, mCurBea, mSpeed)
+                    if (mRouteEngine.isActive) {
+                        val speedForStep = if (speedFluctuation) {
+                            GeoPredict.randomInRangeWithMean(mSpeed * 0.5, mSpeed * 1.5, mSpeed)
+                        } else {
+                            mSpeed
+                        }
+                        mRouteEngine.advance(speedForStep * 0.185)
+                        mCurLng = mRouteEngine.currentLng
+                        mCurLat = mRouteEngine.currentLat
+                        mCurBea = mRouteEngine.currentBea
+                        updateJoystickStatus()
+                    }
+                    val (jlat, jlng) = jitterLocation()
+                    val jitterApplied = jlat != mCurLat || jlng != mCurLng
+                    if (jitterApplied) {
+                        KailLog.v(this@ServiceGoSandbox, "[sandbox] ServiceGoSandbox", "jitter applied: $mCurLat,$mCurLng -> $jlat,$jlng")
+                    }
+                    SandboxLocationHook.updateLocation(jlat, jlng, mCurAlt, mCurBea, mSpeed)
                     sendEmptyMessage(HANDLER_MSG_ID)
                 } catch (e: InterruptedException) {
-                    KailLog.e(this@ServiceGoSandbox, "ServiceGoSandbox", "handleMessage interrupted: ${e.message}")
+                    KailLog.e(this@ServiceGoSandbox, "[sandbox] ServiceGoSandbox", "handleMessage interrupted: ${e.message}")
                     Thread.currentThread().interrupt()
                 } catch (e: Exception) {
-                    KailLog.e(this@ServiceGoSandbox, "ServiceGoSandbox", "handleMessage exception: ${e.message}")
+                    KailLog.e(this@ServiceGoSandbox, "[sandbox] ServiceGoSandbox", "handleMessage exception: ${e.message}")
                     sendEmptyMessageDelayed(HANDLER_MSG_ID, 100)
                 }
             }
@@ -378,10 +443,17 @@ class ServiceGoSandbox : Service() {
     }
 
     private fun startLocationLoop() {
-        if (!this::mLocHandler.isInitialized) return
+        if (!this::mLocHandler.isInitialized) {
+            KailLog.e(this, "[sandbox] ServiceGoSandbox", "startLocationLoop: mLocHandler not initialized!")
+            return
+        }
         isStop = false
-        if (locationLoopStarted) return
+        if (locationLoopStarted) {
+            KailLog.i(this, "[sandbox] ServiceGoSandbox", "startLocationLoop: already running, skip")
+            return
+        }
         locationLoopStarted = true
+        KailLog.i(this, "[sandbox] ServiceGoSandbox", "startLocationLoop: location loop started")
         broadcastStatus()
         mLocHandler.sendEmptyMessage(HANDLER_MSG_ID)
     }

@@ -91,6 +91,10 @@
 
 参考申请教程：[docs/baiduApiKey.md](docs/baiduApiKey.md)
 
+### 2.如果root模式提示获取root类似的
+
+解决办法：可以安装1.6.5的kaillocation与 KailLocationXposed,然后root模式下开始模拟就可以了
+
 ---
 
 ## 联系作者

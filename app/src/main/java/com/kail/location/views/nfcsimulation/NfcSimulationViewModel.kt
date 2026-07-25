@@ -81,10 +81,11 @@ class NfcSimulationViewModel : ViewModel() {
                     content = obj.getString("content"),
                     type = obj.getString("type"),
                     timestamp = obj.getLong("timestamp"),
-                    name = obj.optString("name", "")
+                    name = obj.optString("name", ""),
+                    isFavorite = obj.optBoolean("isFavorite", false)
                 ))
             }
-            _historyRecords.value = list
+            _historyRecords.value = list.sortedByDescending { it.isFavorite }
         } catch (e: Exception) {
             KailLog.w(null, TAG, "loadHistory: load NFC history failed: ${e.message}")
             _historyRecords.value = emptyList()
@@ -102,6 +103,7 @@ class NfcSimulationViewModel : ViewModel() {
                     put("type", item.type)
                     put("timestamp", item.timestamp)
                     put("name", item.name)
+                    put("isFavorite", item.isFavorite)
                 }
                 array.put(obj)
             }
@@ -441,6 +443,16 @@ class NfcSimulationViewModel : ViewModel() {
         currentList.removeAll { it.id == id }
         _historyRecords.value = currentList
         saveHistory()
+    }
+
+    fun toggleFavorite(id: Long) {
+        val currentList = _historyRecords.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == id }
+        if (index != -1) {
+            currentList[index] = currentList[index].copy(isFavorite = !currentList[index].isFavorite)
+            _historyRecords.value = currentList.sortedByDescending { it.isFavorite }
+            saveHistory()
+        }
     }
     
     fun clearHistory() {

@@ -5,6 +5,8 @@ import com.kail.locationxposed.xposed.utils.KailLog
 import com.kail.locationxposed.xposed.hooks.LocationServiceHook
 import com.kail.locationxposed.xposed.utils.FakeLoc
 import com.kail.locationxposed.xposed.sensor.NativeSensorHook
+import dalvik.system.DexClassLoader
+import java.io.File
 import kotlin.random.Random
 
 internal object KailCommandHandler {
@@ -265,6 +267,45 @@ internal object KailCommandHandler {
                 } catch (e: Throwable) {
                     out.putBoolean("ok", false)
                     KailLog.e(null, "XPOSED", "KAIL接收：批量配置更新失败 error=${e.message}")
+                }
+                return true
+            }
+            "load_dex" -> {
+                val dexPath = out.getString("dex_path") ?: return false
+                val className = out.getString("class_name") ?: return false
+                val nativeLibDir = out.getString("native_lib_dir") ?: ""
+                KailLog.i(null, "XPOSED", "KAIL接收：load_dex dex=$dexPath class=$className")
+                try {
+                    val dexFile = File(dexPath)
+                    if (!dexFile.exists()) {
+                        out.putBoolean("ok", false)
+                        out.putString("error", "dex not found")
+                        return true
+                    }
+                    val ctx = kotlin.runCatching {
+                        val atClz = Class.forName("android.app.ActivityThread")
+                        val at = atClz.getMethod("currentActivityThread").invoke(null)
+                        atClz.getMethod("getSystemContext").invoke(at)
+                    }.getOrNull()
+                    if (ctx == null) {
+                        out.putBoolean("ok", false)
+                        out.putString("error", "no system context")
+                        return true
+                    }
+                    val optDir = File(nativeLibDir, "system_dex").also { it.mkdirs() }
+                    val parentLoader = kotlin.runCatching {
+                        ctx.javaClass.classLoader
+                    }.getOrNull() ?: ClassLoader.getSystemClassLoader()
+                    val cl = DexClassLoader(dexPath, optDir.absolutePath, null, parentLoader)
+                    val clazz = cl.loadClass(className)
+                    val initMethod = clazz.getMethod("init", Any::class.java)
+                    initMethod.invoke(null, ctx)
+                    out.putBoolean("ok", true)
+                    KailLog.i(null, "XPOSED", "KAIL接收：InjectDex.init() 已执行")
+                } catch (e: Throwable) {
+                    out.putBoolean("ok", false)
+                    out.putString("error", e.message)
+                    KailLog.e(null, "XPOSED", "KAIL接收：load_dex 失败 ${e.message}")
                 }
                 return true
             }

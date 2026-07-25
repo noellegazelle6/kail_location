@@ -33,6 +33,7 @@ import android.util.Log;
 import android.webkit.WebView;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.security.Security;
 import java.util.ArrayList;
@@ -80,8 +81,9 @@ import top.niunaijun.blackbox.utils.Reflector;
 import top.niunaijun.blackbox.utils.SafeContextWrapper;
 import top.niunaijun.blackbox.utils.GlobalContextWrapper;
 import top.niunaijun.blackbox.utils.Slog;
-import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
+import top.niunaijun.blackbox.utils.compat.ActivityManagerCompat;
+import top.niunaijun.blackbox.utils.compat.BundleCompat;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
 import top.niunaijun.blackbox.utils.compat.StrictModeCompat;
 import top.niunaijun.blackbox.core.system.JarManager;
@@ -468,6 +470,8 @@ public class BActivityThread extends IBActivityThread.Stub {
                 throw new RuntimeException("Unable to create application - all creation methods failed");
             }
             
+            wrapAppBaseContext(application, packageName);
+            
             mInitialApplication = application;
             BRActivityThread.get(BlackBoxCore.mainThread())._set_mInitialApplication(mInitialApplication);
             ContextCompat.fix((Context) BRActivityThread.get(BlackBoxCore.mainThread()).getSystemContext());
@@ -689,11 +693,13 @@ public class BActivityThread extends IBActivityThread.Stub {
             }
             
             
+            Context wrappedCtx = GlobalContextWrapper.createSafeContext(packageContext, appInfo.packageName);
+            
             try {
                 Method attachBaseContext = Application.class.getDeclaredMethod("attachBaseContext", Context.class);
                 attachBaseContext.setAccessible(true);
-                attachBaseContext.invoke(application, packageContext);
-                Slog.d(TAG, "Successfully attached base context to application: " + appInfo.className);
+                attachBaseContext.invoke(application, wrappedCtx);
+                Slog.d(TAG, "Successfully attached wrapped base context to application: " + appInfo.className);
             } catch (Exception e) {
                 Slog.w(TAG, "Could not attach base context to application: " + e.getMessage());
             }
@@ -711,64 +717,7 @@ public class BActivityThread extends IBActivityThread.Stub {
                 Slog.e(TAG, "BlackBoxCore.getContext() is null, cannot create fallback context");
                 return null;
             }
-            
-            
-            return new ContextWrapper(baseContext) {
-                @Override
-                public String getPackageName() {
-                    return packageName;
-                }
-                
-                @Override
-                public android.content.pm.PackageManager getPackageManager() {
-                    try {
-                        return baseContext.getPackageManager();
-                    } catch (Exception e) {
-                        Slog.w(TAG, "Error getting package manager from base context: " + e.getMessage());
-                        return null;
-                    }
-                }
-                
-                @Override
-                public android.content.res.Resources getResources() {
-                    try {
-                        return baseContext.getResources();
-                    } catch (Exception e) {
-                        Slog.w(TAG, "Error getting resources from base context: " + e.getMessage());
-                        try {
-                            return android.content.res.Resources.getSystem();
-                        } catch (Exception e2) {
-                            Slog.e(TAG, "Error getting system resources: " + e2.getMessage());
-                            return null;
-                        }
-                    }
-                }
-                
-                @Override
-                public ClassLoader getClassLoader() {
-                    try {
-                        return baseContext.getClassLoader();
-                    } catch (Exception e) {
-                        Slog.w(TAG, "Error getting class loader from base context: " + e.getMessage());
-                        try {
-                            return ClassLoader.getSystemClassLoader();
-                        } catch (Exception e2) {
-                            Slog.e(TAG, "Error getting system class loader: " + e2.getMessage());
-                            return null;
-                        }
-                    }
-                }
-                
-                @Override
-                public Context getApplicationContext() {
-                    try {
-                        return baseContext.getApplicationContext();
-                    } catch (Exception e) {
-                        Slog.w(TAG, "Error getting application context from base context: " + e.getMessage());
-                        return this;
-                    }
-                }
-            };
+            return GlobalContextWrapper.createSafeContext(baseContext, packageName);
         } catch (Exception e) {
             Slog.e(TAG, "Failed to create fallback context for " + packageName + ": " + e.getMessage());
             return null;
@@ -833,6 +782,21 @@ public class BActivityThread extends IBActivityThread.Stub {
     }
     
     
+    private static void wrapAppBaseContext(Application app, String packageName) {
+        try {
+            Context base = app.getBaseContext();
+            if (base == null || base instanceof GlobalContextWrapper) return;
+            Context wrapped = GlobalContextWrapper.createSafeContext(base, packageName);
+            if (wrapped == base) return;
+            Field baseField = ContextWrapper.class.getDeclaredField("mBase");
+            baseField.setAccessible(true);
+            baseField.set(app, wrapped);
+            Slog.d(TAG, "Wrapped application base context for " + packageName);
+        } catch (Exception e) {
+            Slog.w(TAG, "Failed to wrap application base context: " + e.getMessage());
+        }
+    }
+
     private void setApplication(Application application) {
         try {
             mInitialApplication = application;
@@ -905,6 +869,7 @@ public class BActivityThread extends IBActivityThread.Stub {
 
     
     private static Context createMinimalPackageContext(ApplicationInfo info) {
+        Context result = null;
         try {
             
             Context baseContext = BlackBoxCore.getContext();
@@ -914,78 +879,55 @@ public class BActivityThread extends IBActivityThread.Stub {
                 Context packageContext = baseContext.createPackageContext(info.packageName, 0);
                 if (packageContext != null) {
                     Slog.d(TAG, "Successfully created package context with minimal flags for " + info.packageName);
-                    return packageContext;
+                    result = packageContext;
                 }
             } catch (Exception e) {
                 Slog.w(TAG, "Failed to create package context with minimal flags for " + info.packageName + ": " + e.getMessage());
             }
             
-            
-            try {
-                Context packageContext = baseContext.createPackageContext(info.packageName, Context.CONTEXT_IGNORE_SECURITY);
-                if (packageContext != null) {
-                    Slog.d(TAG, "Successfully created package context with ignore security for " + info.packageName);
-                    return packageContext;
+            if (result == null) {
+                try {
+                    Context packageContext = baseContext.createPackageContext(info.packageName, Context.CONTEXT_IGNORE_SECURITY);
+                    if (packageContext != null) {
+                        Slog.d(TAG, "Successfully created package context with ignore security for " + info.packageName);
+                        result = packageContext;
+                    }
+                } catch (Exception e) {
+                    Slog.w(TAG, "Failed to create package context with ignore security for " + info.packageName + ": " + e.getMessage());
                 }
-            } catch (Exception e) {
-                Slog.w(TAG, "Failed to create package context with ignore security for " + info.packageName + ": " + e.getMessage());
             }
             
-            
-            try {
-                Context packageContext = baseContext.createPackageContext(info.packageName, Context.CONTEXT_INCLUDE_CODE);
-                if (packageContext != null) {
-                    Slog.d(TAG, "Successfully created package context with include code for " + info.packageName);
-                    return packageContext;
+            if (result == null) {
+                try {
+                    Context packageContext = baseContext.createPackageContext(info.packageName, Context.CONTEXT_INCLUDE_CODE);
+                    if (packageContext != null) {
+                        Slog.d(TAG, "Successfully created package context with include code for " + info.packageName);
+                        result = packageContext;
+                    }
+                } catch (Exception e) {
+                    Slog.w(TAG, "Failed to create package context with include code for " + info.packageName + ": " + e.getMessage());
                 }
-            } catch (Exception e) {
-                Slog.w(TAG, "Failed to create package context with include code for " + info.packageName + ": " + e.getMessage());
             }
             
         } catch (Exception e) {
             Slog.e(TAG, "Failed to create minimal package context for " + info.packageName + ": " + e.getMessage());
         }
         
+        if (result == null) {
+            Slog.w(TAG, "Using base context as fallback for " + info.packageName);
+            result = createWrappedBaseContext(info.packageName);
+        }
         
-        Slog.w(TAG, "Using base context as fallback for " + info.packageName);
-        return createWrappedBaseContext(info.packageName);
+        return GlobalContextWrapper.createSafeContext(result, info.packageName);
     }
 
     
     private static Context createWrappedBaseContext(String packageName) {
         try {
             Context baseContext = BlackBoxCore.getContext();
-            
-            
-            return new ContextWrapper(baseContext) {
-                @Override
-                public String getPackageName() {
-                    return packageName;
-                }
-                
-                @Override
-                public PackageManager getPackageManager() {
-                    return baseContext.getPackageManager();
-                }
-                
-                @Override
-                public Resources getResources() {
-                    return baseContext.getResources();
-                }
-                
-                @Override
-                public ClassLoader getClassLoader() {
-                    return baseContext.getClassLoader();
-                }
-                
-                @Override
-                public Context getApplicationContext() {
-                    return baseContext.getApplicationContext();
-                }
-            };
+            return GlobalContextWrapper.createSafeContext(baseContext, packageName);
         } catch (Exception e) {
             Slog.e(TAG, "Failed to create wrapped base context for " + packageName + ": " + e.getMessage());
-            
             return BlackBoxCore.getContext();
         }
     }

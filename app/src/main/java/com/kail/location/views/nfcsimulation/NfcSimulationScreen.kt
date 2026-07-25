@@ -1,5 +1,6 @@
 package com.kail.location.views.nfcsimulation
 
+import com.kail.location.utils.GoUtils
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,6 +12,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
@@ -127,8 +130,12 @@ fun NfcSimulationScreen(
                     appPrefs.edit().putString("setting_run_mode", mode).apply()
                 },
                 onDeveloperModeSelected = {
-                    runMode = "developer"
-                    appPrefs.edit().putString("setting_run_mode", "developer").apply()
+                    if (GoUtils.isAllowMockLocation(context)) {
+                        runMode = "developer"
+                        appPrefs.edit().putString("setting_run_mode", "developer").apply()
+                    } else {
+                        GoUtils.openMockLocationSettings(context)
+                    }
                 },
                 scope = scope
             )
@@ -373,6 +380,14 @@ fun NfcSimulationScreen(
                                         text = "${item.type} • ${formatTime(item.timestamp)}",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                                IconButton(onClick = { viewModel.toggleFavorite(item.id) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = "Favorite",
+                                        tint = if (item.isFavorite) Color(0xFFFFB300) else Color.Gray,
+                                        modifier = Modifier.graphicsLayer(alpha = if (item.isFavorite) 1f else 0.4f)
                                     )
                                 }
                                 IconButton(onClick = {

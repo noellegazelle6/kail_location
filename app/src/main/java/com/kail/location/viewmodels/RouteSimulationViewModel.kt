@@ -13,6 +13,10 @@ import org.json.JSONArray
 import java.util.ArrayList
 
 import com.kail.location.models.UpdateInfo
+import com.kail.location.models.HistoryRecord
+import com.kail.location.repositories.DataBaseHistoryLocation
+import android.database.sqlite.SQLiteDatabase
+import kotlinx.coroutines.Dispatchers
 import com.kail.location.utils.UpdateChecker
 import com.kail.location.utils.GoUtils
 import com.kail.location.utils.KailLog
@@ -52,11 +56,23 @@ import com.baidu.mapapi.search.sug.SuggestionResult
  * @property application 应用上下文。
  */
 class RouteSimulationViewModel(application: Application) : AndroidViewModel(application) {
+    private val dbHelper = DataBaseHistoryLocation(application)
+    private var db: SQLiteDatabase? = null
+
+    private val _locationHistoryRecords = MutableStateFlow<List<HistoryRecord>>(emptyList())
+    val locationHistoryRecords: StateFlow<List<HistoryRecord>> = _locationHistoryRecords.asStateFlow()
+
     private val _historyRoutes = MutableStateFlow<List<RouteInfo>>(emptyList())
     /**
      * 历史路线列表的状态流。
      */
     val historyRoutes: StateFlow<List<RouteInfo>> = _historyRoutes.asStateFlow()
+
+    private val _pendingRoutePoints = MutableStateFlow<List<LatLng>?>(null)
+    val pendingRoutePoints: StateFlow<List<LatLng>?> = _pendingRoutePoints.asStateFlow()
+
+    private val _pendingRouteName = MutableStateFlow<String?>(null)
+    val pendingRouteName: StateFlow<String?> = _pendingRouteName.asStateFlow()
 
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
     /**
@@ -151,6 +167,10 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         _runMode.value = sharedPreferences.getString("setting_run_mode", "developer") ?: "developer"
         loadSettings()
         loadRoutes()
+        try {
+            db = dbHelper.writableDatabase
+            loadLocationHistoryRecords()
+        } catch (_: Exception) {}
         ContextCompat.registerReceiver(
             application,
             statusReceiver,
@@ -331,6 +351,24 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                     "路线模拟启动被拦截：扣减模拟次数失败（consumeSimulation=false）", 'w')
                 return@launch
             }
+
+            val pending = _pendingRoutePoints.value
+            if (pending != null) {
+                val newId = saveRouteSync(pending)
+                clearPendingRoute()
+                if (newId != null) {
+                    _selectedRouteId.value = newId
+                }
+            } else {
+                val selId = _selectedRouteId.value
+                if (selId != null) {
+                    val newId = updateRouteTimestamp(selId)
+                    if (newId != null) {
+                        _selectedRouteId.value = newId
+                    }
+                }
+            }
+
             val points = getSelectedRoutePoints()
             if (points == null || points.size < 4) {
                 KailLog.persist(app, SimulationDiagnostics.TAG,
@@ -360,9 +398,9 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
             }
 
             if (settings.value.stepFreqSimulation) {
-                if (currentRunMode != "root" && currentRunMode != "xposed") {
+                if (currentRunMode != "root" && currentRunMode != "xposed" && currentRunMode != "sandbox") {
                     KailLog.persist(app, SimulationDiagnostics.TAG,
-                        "路线模拟启动被拦截：步频模拟需要 ROOT/Xposed 模式，当前=$currentRunMode", 'w')
+                        "路线模拟启动被拦截：步频模拟需要 ROOT/Xposed/Sandbox 模式，当前=$currentRunMode", 'w')
                     _toastMessage.value = app.getString(R.string.vm_step_root_required)
                     return@launch
                 }
@@ -385,7 +423,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
             intent.putExtra(extraCoordType, "BD09")
             intent.putExtra(com.kail.location.views.locationpicker.LocationPickerActivity.ALT_MSG_ID, sharedPreferences.getString("setting_altitude", "55.0")?.toDoubleOrNull() ?: 55.0)
             intent.putExtra(extraSpeedFluctuation, settings.value.speedFluctuation)
-            if (currentRunMode == "root" || currentRunMode == "xposed") {
+            if (currentRunMode == "root" || currentRunMode == "xposed" || currentRunMode == "sandbox") {
                 intent.putExtra(ServiceGoRoot.EXTRA_STEP_ENABLED, settings.value.stepFreqSimulation)
                 intent.putExtra(ServiceGoRoot.EXTRA_STEP_FREQ, settings.value.stepCadenceSpm)
                 intent.putExtra("EXTRA_STEP_SCHEME", sharedPreferences.getString("setting_sim_scheme", "0")?.toIntOrNull() ?: 0)
@@ -458,6 +496,11 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
     fun setRunMode(mode: String) {
         _runMode.value = mode
         sharedPreferences.edit().putString("setting_run_mode", mode).apply()
+        if (mode != "root" && mode != "xposed" && mode != "sandbox") {
+            if (_settings.value.stepFreqSimulation) {
+                updateStepFreqSimulation(false)
+            }
+        }
     }
 
     fun selectRoute(id: String?) {
@@ -595,7 +638,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         _settings.value = _settings.value.copy(stepFreqSimulation = enabled)
         PreferenceManager.getDefaultSharedPreferences(getApplication())
             .edit().putBoolean("route_sim_step_enabled", enabled).apply()
-        if (_isSimulating.value && (_runMode.value == "root" || _runMode.value == "xposed")) {
+        if (_isSimulating.value && (_runMode.value == "root" || _runMode.value == "xposed" || _runMode.value == "sandbox")) {
             val app = getApplication<Application>()
             val intent = Intent(app, getServiceClass(_runMode.value))
             intent.putExtra("EXTRA_CONTROL_ACTION", ServiceGoRoot.CONTROL_SET_STEP)
@@ -609,7 +652,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         _settings.value = _settings.value.copy(stepCadenceSpm = spm)
         PreferenceManager.getDefaultSharedPreferences(getApplication())
             .edit().putFloat("route_sim_step_freq", spm).apply()
-        if (_isSimulating.value && (_runMode.value == "root" || _runMode.value == "xposed")) {
+        if (_isSimulating.value && (_runMode.value == "root" || _runMode.value == "xposed" || _runMode.value == "sandbox")) {
             val app = getApplication<Application>()
             val intent = Intent(app, getServiceClass(_runMode.value))
             intent.putExtra("EXTRA_CONTROL_ACTION", ServiceGoRoot.CONTROL_SET_STEP)
@@ -621,6 +664,65 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
     fun updateMode(mode: com.kail.location.models.TransportMode) {
         _settings.value = _settings.value.copy(mode = mode)
+    }
+
+    fun loadLocationHistoryRecords() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val database = db
+            if (database == null) return@launch
+            try {
+                val colInfo = mutableListOf<String>()
+                val pc = database.rawQuery("PRAGMA table_info(${DataBaseHistoryLocation.TABLE_NAME})", null)
+                while (pc.moveToNext()) { colInfo.add(pc.getString(1)) }
+                pc.close()
+
+                val hasFavCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE in colInfo
+                val hasFavTimeCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE_TIME in colInfo
+                val hasFavOrderCol = DataBaseHistoryLocation.DB_COLUMN_FAVORITE_ORDER in colInfo
+
+                val orderClauses = mutableListOf<String>()
+                if (hasFavCol) orderClauses.add("${DataBaseHistoryLocation.DB_COLUMN_FAVORITE} DESC")
+                orderClauses.add("${DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP} DESC")
+
+                val cursor = database.rawQuery(
+                    "SELECT * FROM ${DataBaseHistoryLocation.TABLE_NAME} " +
+                    "WHERE ${DataBaseHistoryLocation.DB_COLUMN_ID} > 0 " +
+                    "ORDER BY ${orderClauses.joinToString(",")}", null
+                )
+                val list = mutableListOf<HistoryRecord>()
+                while (cursor.moveToNext()) {
+                    val id = cursor.getInt(0)
+                    val location = cursor.getString(1)
+                    val longitude = cursor.getString(2)
+                    val latitude = cursor.getString(3)
+                    val timeStamp = cursor.getInt(4).toLong()
+                    val bd09Longitude = cursor.getString(5)
+                    val bd09Latitude = cursor.getString(6)
+                    val isFav = if (hasFavCol) cursor.getInt(7) == 1 else false
+                    val favTime = if (hasFavTimeCol) cursor.getLong(8) else 0L
+                    val favOrder = if (hasFavOrderCol) cursor.getInt(9) else 0
+                    list.add(
+                        HistoryRecord(
+                            id = id,
+                            name = location,
+                            longitudeWgs84 = longitude,
+                            latitudeWgs84 = latitude,
+                            timestamp = timeStamp,
+                            longitudeBd09 = bd09Longitude,
+                            latitudeBd09 = bd09Latitude,
+                            displayTime = com.kail.location.utils.GoUtils.timeStamp2Date(timeStamp.toString()),
+                            displayWgs84 = "",
+                            displayBd09 = "",
+                            isFavorite = isFav,
+                            favoriteTime = favTime,
+                            favoriteOrder = favOrder
+                        )
+                    )
+                }
+                cursor.close()
+                _locationHistoryRecords.value = list
+            } catch (_: Exception) {}
+        }
     }
 
     /**
@@ -658,10 +760,14 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                 val coordE = String.format("%.6f,%.6f", last.optDouble("lat"), last.optDouble("lng"))
                 val s = obj.optString("startName", coordS).let { if (it.isBlank() || it == "null") coordS else it }
                 val e = obj.optString("endName", coordE).let { if (it.isBlank() || it == "null") coordE else it }
-                list.add(time to RouteInfo(time.toString(), s, e, ""))
+                val isFav = obj.optBoolean("isFavorite", false)
+                val favTime = obj.optLong("favoriteTime", 0L)
+                val favOrder = obj.optInt("favoriteOrder", 0)
+                list.add(time to RouteInfo(time.toString(), s, e, "", isFav, favTime, favOrder))
             }
             list.sortByDescending { it.first }
-            list.map { it.second }
+            val routes = list.map { it.second }
+            routes.sortedWith(compareByDescending<RouteInfo> { it.isFavorite }.thenBy { it.favoriteOrder })
         } catch (e: Exception) {
             KailLog.w(getApplication(), TAG, "parseRoutes: parse saved routes failed: ${e.message}")
             emptyList()
@@ -676,6 +782,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                 val arr = JSONArray(existing)
                 val obj = JSONObject()
                 obj.put("time", System.currentTimeMillis())
+                obj.put("isFavorite", false)
                 val pts = JSONArray()
                 points.forEach { pt ->
                     val p = JSONObject()
@@ -738,6 +845,70 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         return getLatestRoutePoints()
     }
 
+    fun setPendingRoutePoints(points: List<LatLng>) {
+        _pendingRoutePoints.value = points
+        _selectedRouteId.value = null
+        val name = if (points.isNotEmpty()) {
+            String.format("%.4f,%.4f", points.first().latitude, points.first().longitude)
+        } else null
+        _pendingRouteName.value = name
+    }
+
+    fun clearPendingRoute() {
+        _pendingRoutePoints.value = null
+        _pendingRouteName.value = null
+    }
+
+    private fun saveRouteSync(points: List<LatLng>): String? {
+        try {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val existing = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(existing)
+            val obj = JSONObject()
+            val time = System.currentTimeMillis()
+            obj.put("time", time)
+            obj.put("isFavorite", false)
+            obj.put("favoriteOrder", 0)
+            val pts = JSONArray()
+            points.forEach { pt ->
+                val p = JSONObject()
+                p.put("lat", pt.latitude)
+                p.put("lng", pt.longitude)
+                pts.put(p)
+            }
+            obj.put("points", pts)
+            arr.put(obj)
+            prefs.edit().putString("saved_routes", arr.toString()).apply()
+            _historyRoutes.value = parseRoutes(arr.toString())
+            enrichNamesForRoute(obj)
+            return time.toString()
+        } catch (e: Exception) {
+            KailLog.w(getApplication(), TAG, "saveRouteSync: save route failed: ${e.message}")
+        }
+        return null
+    }
+
+    private fun updateRouteTimestamp(id: String): String? {
+        try {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val res = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(res)
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                if (obj.optLong("time", 0L).toString() == id) {
+                    val newTime = System.currentTimeMillis()
+                    obj.put("time", newTime)
+                    prefs.edit().putString("saved_routes", arr.toString()).apply()
+                    _historyRoutes.value = parseRoutes(arr.toString())
+                    return newTime.toString()
+                }
+            }
+        } catch (e: Exception) {
+            KailLog.w(getApplication(), TAG, "updateRouteTimestamp failed: ${e.message}")
+        }
+        return null
+    }
+
     fun renameRoute(id: String, newName: String) {
         viewModelScope.launch {
             val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
@@ -751,6 +922,109 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                     obj.put("startName", newName)
                     obj.put("endName", newName)
                     break
+                }
+            }
+            prefs.edit().putString("saved_routes", arr.toString()).apply()
+            _historyRoutes.value = parseRoutes(arr.toString())
+        }
+    }
+
+    fun toggleFavorite(id: String) {
+        viewModelScope.launch {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val res = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(res)
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                if (obj.optLong("time", 0L).toString() == id) {
+                    val current = obj.optBoolean("isFavorite", false)
+                    val newFav = !current
+                    obj.put("isFavorite", newFav)
+                    if (newFav) {
+                        obj.put("favoriteTime", System.currentTimeMillis())
+                        val maxOrder = (0 until arr.length()).maxOfOrNull { j ->
+                            arr.optJSONObject(j)?.optInt("favoriteOrder", 0) ?: 0
+                        } ?: 0
+                        obj.put("favoriteOrder", maxOrder + 1)
+                    } else {
+                        obj.put("favoriteOrder", 0)
+                    }
+                    break
+                }
+            }
+            prefs.edit().putString("saved_routes", arr.toString()).apply()
+            _historyRoutes.value = parseRoutes(arr.toString())
+        }
+    }
+
+    private fun normalizeFavoriteOrders(arr: JSONArray) {
+        val favIndices = (0 until arr.length())
+            .filter { arr.optJSONObject(it)?.optBoolean("isFavorite", false) == true }
+        favIndices.forEachIndexed { index, i ->
+            arr.optJSONObject(i)?.put("favoriteOrder", index + 1)
+        }
+    }
+
+    fun moveFavoriteUp(id: String) {
+        viewModelScope.launch {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val res = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(res)
+            normalizeFavoriteOrders(arr)
+            val favIndices = (0 until arr.length())
+                .filter { arr.optJSONObject(it)?.optBoolean("isFavorite", false) == true }
+                .sortedBy { arr.optJSONObject(it)?.optInt("favoriteOrder", Int.MAX_VALUE) ?: Int.MAX_VALUE }
+            val idx = favIndices.indexOfFirst { arr.optJSONObject(it)?.optLong("time", 0L).toString() == id }
+            if (idx <= 0) return@launch
+            val curIdx = favIndices[idx]
+            val aboveIdx = favIndices[idx - 1]
+            val curObj = arr.optJSONObject(curIdx) ?: return@launch
+            val aboveObj = arr.optJSONObject(aboveIdx) ?: return@launch
+            val curOrder = curObj.optInt("favoriteOrder", 0)
+            val aboveOrder = aboveObj.optInt("favoriteOrder", 0)
+            curObj.put("favoriteOrder", aboveOrder)
+            aboveObj.put("favoriteOrder", curOrder)
+            prefs.edit().putString("saved_routes", arr.toString()).apply()
+            _historyRoutes.value = parseRoutes(arr.toString())
+        }
+    }
+
+    fun moveFavoriteDown(id: String) {
+        viewModelScope.launch {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val res = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(res)
+            normalizeFavoriteOrders(arr)
+            val favIndices = (0 until arr.length())
+                .filter { arr.optJSONObject(it)?.optBoolean("isFavorite", false) == true }
+                .sortedBy { arr.optJSONObject(it)?.optInt("favoriteOrder", Int.MAX_VALUE) ?: Int.MAX_VALUE }
+            val idx = favIndices.indexOfFirst { arr.optJSONObject(it)?.optLong("time", 0L).toString() == id }
+            if (idx < 0 || idx >= favIndices.size - 1) return@launch
+            val curIdx = favIndices[idx]
+            val belowIdx = favIndices[idx + 1]
+            val curObj = arr.optJSONObject(curIdx) ?: return@launch
+            val belowObj = arr.optJSONObject(belowIdx) ?: return@launch
+            val curOrder = curObj.optInt("favoriteOrder", 0)
+            val belowOrder = belowObj.optInt("favoriteOrder", 0)
+            curObj.put("favoriteOrder", belowOrder)
+            belowObj.put("favoriteOrder", curOrder)
+            prefs.edit().putString("saved_routes", arr.toString()).apply()
+            _historyRoutes.value = parseRoutes(arr.toString())
+        }
+    }
+
+    fun setFavoriteOrder(ids: List<String>) {
+        viewModelScope.launch {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val res = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(res)
+            ids.forEachIndexed { index, id ->
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    if (obj.optLong("time", 0L).toString() == id) {
+                        obj.put("favoriteOrder", index + 1)
+                        break
+                    }
                 }
             }
             prefs.edit().putString("saved_routes", arr.toString()).apply()

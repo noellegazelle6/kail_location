@@ -1,8 +1,13 @@
 package com.kail.location.service.Root
 
 import android.content.Context
+import android.location.LocationManager
+import android.os.Bundle
+import android.os.IBinder
+import android.os.Parcel
 import androidx.preference.PreferenceManager
 import com.kail.location.inject.utils.RootControlPaths
+import com.kail.location.inject.utils.ServiceManagerBridge
 import com.kail.location.utils.KailLog
 import com.kail.location.utils.ShellUtils
 import com.kail.location.utils.SimulationDiagnostics
@@ -269,9 +274,11 @@ object RootDeployer {
             rootCmd("chmod 644 ${sessionLoader.absolutePath}")
             rootCmd("chcon u:object_r:system_file:s0 ${sessionLoader.absolutePath} 2>/dev/null || true")
             rootCmd("rm -f $LHOOKER_PATH_FILE")
-            val sessionLHooker = prepareSessionLHooker(sessionId)
             disableStaleRootControls()
             clearInjectionRuntimeFiles(context)
+
+            // --- 先试 ptrace 注入 ---
+            val sessionLHooker = prepareSessionLHooker(sessionId)
             val sessionArg = if (sessionLHooker.isNullOrBlank()) "" else " -a ${shellQuote(sessionLHooker)}"
             val cmd = "${injector.absolutePath} -P system_server -l ${sessionLoader.absolutePath} -n com.kail.location$sessionArg"
             val out = rootCmd(cmd, ROOT_INJECT_TIMEOUT_MS).trim()
@@ -279,8 +286,13 @@ object RootDeployer {
             val injectorOk = out.contains("Inject ok")
             val bootstrapSignal = if (injectorOk) waitForJavaBootstrapSignal(context) else null
             val ok = injectorOk && bootstrapSignal != null
-            val detail = when {
-                ok -> "kail_inject 返回 Inject ok；$bootstrapSignal"
+            if (ok) {
+                val detail = "kail_inject 返回 Inject ok；$bootstrapSignal"
+                KailLog.i(null, TAG, "bootstrapInjection: ptrace 注入成功")
+                return true to detail
+            }
+
+            val ptraceDetail = when {
                 injectorOk ->
                     "kail_inject 返回 Inject ok，但未看到 Java bootstrap/control ack；这次不记录已注入，避免下次跳过 ptrace。原始输出：$out"
                 out.contains("watchdog", ignoreCase = true) ->
@@ -291,7 +303,16 @@ object RootDeployer {
                     "注入器无输出（su 被拒/进程被杀？）"
                 else -> "注入未确认成功。原始输出：$out"
             }
-            ok to detail
+            KailLog.w(null, TAG, "bootstrapInjection: ptrace 注入失败，尝试 Xposed 桥接")
+
+            // --- ptrace 失败，回退到 Xposed 桥接 ---
+            val fallbackResult = tryXposedBridgeInjection(context)
+            if (fallbackResult) {
+                KailLog.i(null, TAG, "bootstrapInjection: Xposed 桥接成功 (ptrace fallback)")
+                return true to "Xposed 桥接加载 inject.dex 成功（ptrace 失败后回退）"
+            }
+            KailLog.w(null, TAG, "bootstrapInjection: Xposed 桥接也不可用")
+            false to "ptrace 注入失败（$ptraceDetail），Xposed 桥接也不可用"
         } finally {
             if (selinuxPermissiveDuringInject) {
                 rootCmd("setenforce 1")
@@ -325,6 +346,69 @@ object RootDeployer {
                 "done",
             timeoutMs = 1500L
         )
+    }
+
+    /**
+     * Fallback when ptrace injection fails: use the Xposed module's
+     * "load_dex" command (via sendExtraCommand, same IPC channel as
+     * [ServiceGoXposed]) to load InjectDex.init() inside system_server.
+     *
+     * Returns true when the module loaded the dex and the "oem_location"
+     * binder subsequently appeared in ServiceManager.
+     */
+    private fun tryXposedBridgeInjection(context: Context?): Boolean {
+        val ctx = context ?: return false
+        val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            ?: return false
+
+        // Step 1: exchange key (probes Xposed module + gets auth token)
+        val key = runCatching {
+            val extras = Bundle()
+            if (!lm.sendExtraCommand("kail", "exchange_key", extras)) return@runCatching null
+            extras.getString("key")
+        }.getOrNull() ?: run {
+            KailLog.w(null, TAG, "tryXposedBridge: exchange_key failed — Xposed module not responding")
+            return false
+        }
+        KailLog.i(null, TAG, "tryXposedBridge: key exchanged")
+
+        // Step 2: call load_dex
+        val dexPath = File(FAKELOC_DIR, "libfakeloc.so").absolutePath
+        val className = "com.kail.location.inject.fakelocation.InjectDex"
+        val nativeLibDir = FAKELOC_DIR
+        val loadOk = runCatching {
+            val extras = Bundle()
+            extras.putString("command_id", "load_dex")
+            extras.putString("dex_path", dexPath)
+            extras.putString("class_name", className)
+            extras.putString("native_lib_dir", nativeLibDir)
+            lm.sendExtraCommand("kail", key, extras)
+        }.getOrDefault(false)
+
+        if (!loadOk) {
+            KailLog.w(null, TAG, "tryXposedBridge: load_dex command rejected")
+            return false
+        }
+        KailLog.i(null, TAG, "tryXposedBridge: load_dex sent, waiting for injectdex_state")
+
+        // Step 3: wait for InjectDex.init() to write bootstrap state.
+        // oem_location binder may be registered but SELinux blocks find from
+        // untrusted_app on Android 14+, so check the state file instead.
+        val deadline = System.currentTimeMillis() + 7000L
+        while (System.currentTimeMillis() < deadline) {
+            val state = rootCmd("cat $BOOTSTRAP_STATE_FILE 2>/dev/null", 1500L).trim()
+            if (state.contains("finished")) {
+                KailLog.i(null, TAG, "tryXposedBridge: injectdex_state shows finished")
+                return true
+            }
+            if (state.contains("error") || state.contains("aborted")) {
+                KailLog.w(null, TAG, "tryXposedBridge: injectdex_state shows failure: ${state.take(200)}")
+                return false
+            }
+            Thread.sleep(300)
+        }
+        KailLog.w(null, TAG, "tryXposedBridge: injectdex_state did not appear within 7s")
+        return false
     }
 
     private fun waitForJavaBootstrapSignal(context: Context?, timeoutMs: Long = 4000L): String? {

@@ -270,6 +270,24 @@ object GoUtils {
     }
 
     /**
+     * 打开模拟位置应用选择页面。
+     *
+     * Android 12+ 直接跳转到本应用的模拟位置设置，旧版本打开开发者选项页。
+     * @param context 上下文。
+     */
+    @JvmStatic
+    fun openMockLocationSettings(context: Context) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, context.getString(R.string.app_error_dev), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
      * 显示启用模拟位置的提示对话框。
      *
      * @param context 上下文。
@@ -280,13 +298,7 @@ object GoUtils {
             .setTitle(context.getString(R.string.goutils_enable_mock_title))
             .setMessage(context.getString(R.string.goutils_enable_mock_msg))
             .setPositiveButton(context.getString(R.string.goutils_settings)) { dialog, which ->
-                try {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    KailLog.e(context, TAG, "showEnableMockLocationDialog failed", e)
-                }
+                openMockLocationSettings(context)
             }
             .setNegativeButton(context.getString(R.string.goutils_cancel)) { dialog, which ->
             }

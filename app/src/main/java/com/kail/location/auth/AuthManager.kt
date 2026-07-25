@@ -3,6 +3,10 @@ package com.kail.location.auth
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.mutableStateOf
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 object AuthManager {
 
@@ -40,6 +44,7 @@ object AuthManager {
         _isLoggedIn.value = prefs.getBoolean(KEY_IS_LOGGED_IN, false)
         _email.value = prefs.getString(KEY_EMAIL, "") ?: ""
         _isSubscribed.value = prefs.getBoolean(KEY_SUBSCRIBED, false)
+        isSubscriptionActive()
     }
 
     fun saveAuth(token: String, email: String, userId: String) {
@@ -59,6 +64,46 @@ object AuthManager {
             .putString(KEY_SUB_EXPIRES, expiresAt)
             .apply()
         _isSubscribed.value = subscribed
+    }
+
+    /**
+     * 校验订阅是否真正有效：既检查 isSubscribed 标志，也检查过期时间。
+     * 如果本地记录已过期，自动将 _isSubscribed 置为 false。
+     */
+    fun isSubscriptionActive(): Boolean {
+        if (!_isSubscribed.value) return false
+        val expiresAt = prefs.getString(KEY_SUB_EXPIRES, null) ?: return true
+        if (expiresAt.isBlank()) return true
+
+        val expireDate = parseDate(expiresAt) ?: return true
+        if (Date().after(expireDate)) {
+            _isSubscribed.value = false
+            prefs.edit().putBoolean(KEY_SUBSCRIBED, false).apply()
+            return false
+        }
+        return true
+    }
+
+    private val dateFormats = arrayOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+        "yyyy-MM-dd'T'HH:mm:ssZ",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd"
+    )
+
+    private fun parseDate(dateStr: String): Date? {
+        for (format in dateFormats) {
+            try {
+                val sdf = SimpleDateFormat(format, Locale.US)
+                sdf.timeZone = TimeZone.getTimeZone("UTC")
+                return sdf.parse(dateStr)
+            } catch (_: Exception) {
+            }
+        }
+        return null
     }
 
     fun clearAuth() {

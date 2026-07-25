@@ -410,7 +410,8 @@ object DataTransferManager {
         DataBaseHistoryLocation.DB_COLUMN_LATITUDE_WGS84,
         DataBaseHistoryLocation.DB_COLUMN_TIMESTAMP,
         DataBaseHistoryLocation.DB_COLUMN_LONGITUDE_CUSTOM,
-        DataBaseHistoryLocation.DB_COLUMN_LATITUDE_CUSTOM
+        DataBaseHistoryLocation.DB_COLUMN_LATITUDE_CUSTOM,
+        DataBaseHistoryLocation.DB_COLUMN_FAVORITE
     )
 
     /** 统计某个 SQLite 类别当前的行数。 */
