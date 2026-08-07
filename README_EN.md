@@ -112,6 +112,7 @@ Solution: Install KailLocation 1.6.5 and KailLocationXposed, then start simulati
 - https://github.com/Hilaver/MockGPS
 - https://github.com/Acooldog/fuckschoolrun
 - https://github.com/ALEX5402/NewBlackbox
+- https://github.com/zensu357/Android-CamSwap-OpenSource
 
 ---
 

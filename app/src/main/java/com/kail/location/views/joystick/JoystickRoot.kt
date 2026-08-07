@@ -1,5 +1,7 @@
 package com.kail.location.views.joystick
 
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -28,6 +30,16 @@ fun JoystickRoot(
     LaunchedEffect(windowType) {
         val needsFocus = windowType == JoystickViewModel.WindowType.HISTORY || windowType == JoystickViewModel.WindowType.MAP
         onFocusModeChanged(needsFocus)
+    }
+    // BackHandler is only available when composed inside an Activity
+    // (LocalOnBackPressedDispatcherOwner). In a Service-hosted floating
+    // window the dispatcher is absent; the X/close button remains the
+    // only way to go back.
+    val backDispatcher = LocalOnBackPressedDispatcherOwner.current
+    if (backDispatcher != null) {
+        BackHandler(windowType != JoystickViewModel.WindowType.JOYSTICK) {
+            viewModel.setWindowType(JoystickViewModel.WindowType.JOYSTICK)
+        }
     }
     val isPaused by viewModel.isRoutePaused.collectAsState()
     val routeSpeed by viewModel.routeSpeed.collectAsState()

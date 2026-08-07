@@ -104,6 +104,9 @@ class RouteSimulationActivity : BaseActivity(), SensorEventListener {
                         R.id.nav_cell_simulation -> {
                             startActivity(Intent(this@RouteSimulationActivity, com.kail.location.views.cellsimulation.CellSimulationActivity::class.java))
                         }
+                        R.id.nav_camera_simulation -> {
+                            startActivity(Intent(this@RouteSimulationActivity, com.kail.location.views.camerasimulation.CameraSimulationActivity::class.java))
+                        }
                         R.id.nav_sandbox -> {
                             startActivity(Intent(this@RouteSimulationActivity, com.kail.location.views.sandbox.SandboxActivity::class.java))
                         }

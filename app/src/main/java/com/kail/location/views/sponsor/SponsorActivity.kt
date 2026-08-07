@@ -29,20 +29,12 @@ class SponsorActivity : BaseActivity() {
                             }
                         }
                     },
-                    onWechatCheckout = { viewModel.createWechatCheckout() },
                     isCreatingCheckout = viewModel.isCreatingCheckout,
                     checkoutError = viewModel.checkoutError,
                     plans = viewModel.plans,
                     selectedPlanId = viewModel.selectedPlanId,
                     onSelectPlan = { viewModel.selectPlan(it) },
-                    plansLoaded = viewModel.plansLoaded,
-                    wechatPayUrl = viewModel.wechatPayUrl,
-                    onCopyUrl = { url ->
-                        val clipboard = getSystemService(android.content.ClipboardManager::class.java)
-                                        ?: return@SponsorScreen
-                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("checkout", url))
-                        android.widget.Toast.makeText(this, getString(R.string.sponsor_copied), android.widget.Toast.LENGTH_SHORT).show()
-                    }
+                    plansLoaded = viewModel.plansLoaded
                 )
             }
         }

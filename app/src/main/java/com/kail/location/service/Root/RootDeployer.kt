@@ -48,8 +48,6 @@ object RootDeployer {
     const val RUNTIME_DIR = "/data/system/kail-loc"
     const val NATIVE_HOOK_SO = "libkail_native_hook.so"
     const val INJECTOR_BIN = "kail_inject"
-    private const val LHOOKER_PATH_FILE = "/data/kail-loc/lhooker_path.txt"
-    private const val NATIVE_HOOK_PATH_FILE = "/data/kail-loc/native_hook_path.txt"
     private const val INJECTION_STATE_FILE = "$RUNTIME_DIR/injection_state.txt"
     private const val BOOTSTRAP_STATE_FILE = "$RUNTIME_DIR/injectdex_state.txt"
     private const val RUNTIME_FAKELOC_INIT_LOG = "$RUNTIME_DIR/fakeloc_init.log"
@@ -81,22 +79,33 @@ object RootDeployer {
             KailLog.w(null, TAG, "ensureBaseline: no root; skipping")
             return false
         }
-        if (isSystemServerInjectionCurrent(context)) {
-            KailLog.i(null, TAG, "ensureBaseline: system_server already injected for this boot/app; skip deploy and ptrace")
-            return true
+
+        // ── 1. 版本化文件缺失或过期 → 全量重部署 ──
+        if (!isInjectionStaged(context)) {
+            val v = currentAppVersionCode(context)
+            KailLog.i(null, TAG, "ensureBaseline: deploying version $v")
+            resetDeployDirs()
+            syncInjectLogMarkers(context)
+            deployNativeHookLib(context)
+            deployInjectorBin(context)
+            deployFakelocLibs(context)
+            deployDexPayload(context)
+            KailLog.i(null, TAG, "ensureBaseline: full deploy complete (version $v)")
+        } else {
+            // Files are current — keep inject.dex atomically in sync for
+            // per-app injection (which loads the dex on every hookApplication).
+            refreshDexPayloadAtomic(context)
         }
-        prepareDirs()
-        syncInjectLogMarkers(context)
-        deployNativeHookLib(context)
-        deployInjectorBin(context)
-        deployFakelocLibs(context)
-        deployDexPayload(context)
-        // Best-effort inject. If the watchdog trips we'll just log the
-        // injector's "Inject fail" message; the service still functions
-        // through the test-provider path.
-        runCatching {
-            if (bootstrapInjection(context)) markSystemServerInjectionCurrent(context)
-        }.onFailure { KailLog.w(null, TAG, "bootstrapInjection: ${it.message}") }
+
+        // ── 2. 注入 — 仅当本次开机尚未注入 system_server ──
+        if (!isSystemServerInjectionCurrent(context)) {
+            KailLog.i(null, TAG, "ensureBaseline: injection not current for this boot; trying ptrace")
+            runCatching {
+                if (bootstrapInjection(context)) markSystemServerInjectionCurrent(context)
+            }.onFailure { KailLog.w(null, TAG, "bootstrapInjection: ${it.message}") }
+        } else {
+            KailLog.i(null, TAG, "ensureBaseline: injection already current; skip ptrace")
+        }
         return true
     }
 
@@ -122,8 +131,8 @@ object RootDeployer {
             return true
         }
 
-        runCatching { prepareDirs() }
-            .onSuccess { diag.step("准备目录", true, "$STAGING_DIR / $FAKELOC_DIR (chcon system_file)") }
+        runCatching { resetDeployDirs() }
+            .onSuccess { diag.step("准备目录", true, "$STAGING_DIR / $FAKELOC_DIR (重置→部署)") }
             .onFailure { diag.error("准备目录", it) }
 
         syncInjectLogMarkers(context)
@@ -256,8 +265,16 @@ object RootDeployer {
             } else {
                 KailLog.i(null, TAG, "bootstrapInjection: SELinux passthrough (permissive switch off)")
             }
-            val injector = File(STAGING_DIR, INJECTOR_BIN)
-            val initLoader = File(FAKELOC_DIR, "libfakeloc_init.so")
+            val injector: File
+            val initLoader: File
+            if (context != null) {
+                val v = currentAppVersionCode(context)
+                injector = File(STAGING_DIR, "kail_inject_v${v}")
+                initLoader = File(FAKELOC_DIR, "libfakeloc_init_v${v}.so")
+            } else {
+                injector = File(STAGING_DIR, INJECTOR_BIN)
+                initLoader = File(FAKELOC_DIR, "libfakeloc_init.so")
+            }
             if (!injector.exists()) {
                 val msg = "注入器缺失：${injector.absolutePath}（部署失败？）"
                 KailLog.e(null, TAG, "bootstrapInjection: $msg")
@@ -268,19 +285,13 @@ object RootDeployer {
                 KailLog.e(null, TAG, "bootstrapInjection: $msg")
                 return false to msg
             }
-            val sessionId = System.currentTimeMillis()
-            val sessionLoader = File(FAKELOC_DIR, "libfakeloc_init_${sessionId}.so")
-            rootCmd("cp -f ${initLoader.absolutePath} ${sessionLoader.absolutePath}", ROOT_COPY_TIMEOUT_MS)
-            rootCmd("chmod 644 ${sessionLoader.absolutePath}")
-            rootCmd("chcon u:object_r:system_file:s0 ${sessionLoader.absolutePath} 2>/dev/null || true")
-            rootCmd("rm -f $LHOOKER_PATH_FILE")
             disableStaleRootControls()
             clearInjectionRuntimeFiles(context)
 
             // --- 先试 ptrace 注入 ---
-            val sessionLHooker = prepareSessionLHooker(sessionId)
+            val sessionLHooker = prepareSessionLHooker(context)
             val sessionArg = if (sessionLHooker.isNullOrBlank()) "" else " -a ${shellQuote(sessionLHooker)}"
-            val cmd = "${injector.absolutePath} -P system_server -l ${sessionLoader.absolutePath} -n com.kail.location$sessionArg"
+            val cmd = "${injector.absolutePath} -P system_server -l ${initLoader.absolutePath} -n com.kail.location$sessionArg"
             val out = rootCmd(cmd, ROOT_INJECT_TIMEOUT_MS).trim()
             KailLog.i(null, TAG, "kail_inject -> $out")
             val injectorOk = out.contains("Inject ok")
@@ -373,7 +384,7 @@ object RootDeployer {
         KailLog.i(null, TAG, "tryXposedBridge: key exchanged")
 
         // Step 2: call load_dex
-        val dexPath = File(FAKELOC_DIR, "libfakeloc.so").absolutePath
+        val dexPath = File(FAKELOC_DIR, "libfakeloc_v${currentAppVersionCode(ctx)}.so").absolutePath
         val className = "com.kail.location.inject.fakelocation.InjectDex"
         val nativeLibDir = FAKELOC_DIR
         val loadOk = runCatching {
@@ -460,12 +471,13 @@ object RootDeployer {
      * already-hooked process just re-runs hookApplication which no-ops the
      * already-installed hooks.
      */
-    fun injectAppProcess(processName: String): Boolean {
+    fun injectAppProcess(context: Context, processName: String): Boolean {
         if (!ShellUtils.hasRoot()) return false
-        val injector = File(STAGING_DIR, INJECTOR_BIN)
+        val v = currentAppVersionCode(context)
+        val injector = File(STAGING_DIR, "kail_inject_v${v}")
         // libfakeloc_apphook.so -> InjectDex.hookApplication (installs the
         // per-process hooks, including PhoneInterfaceManagerHook for phone).
-        val appLoader = File(FAKELOC_DIR, "libfakeloc_apphook.so")
+        val appLoader = File(FAKELOC_DIR, "libfakeloc_apphook_v${v}.so")
         if (!injector.exists() || !appLoader.exists()) {
             KailLog.e(null, TAG, "injectAppProcess: injector or apphook loader missing")
             return false
@@ -480,10 +492,11 @@ object RootDeployer {
      * Side-effect free check for whether the ptrace-injection prerequisites
      * have already been staged on disk.
      */
-    fun isInjectionStaged(): Boolean {
-        if (!File(FAKELOC_DIR, "libfakeloc.so").exists()) return false
-        if (!File(FAKELOC_DIR, "libfakeloc_init.so").exists()) return false
-        if (!File(STAGING_DIR, INJECTOR_BIN).exists()) return false
+    fun isInjectionStaged(context: Context): Boolean {
+        val v = currentAppVersionCode(context)
+        if (!File(FAKELOC_DIR, "libfakeloc_v${v}.so").exists()) return false
+        if (!File(FAKELOC_DIR, "libfakeloc_init_v${v}.so").exists()) return false
+        if (!File(STAGING_DIR, "kail_inject_v${v}").exists()) return false
         return true
     }
 
@@ -498,9 +511,10 @@ object RootDeployer {
     // ------------------------------------------------------------------
 
     fun deployNativeHookLib(context: Context): Boolean {
+        val v = currentAppVersionCode(context)
         val src = File(context.applicationInfo.nativeLibraryDir, NATIVE_HOOK_SO)
-        val dst = File(STAGING_DIR, NATIVE_HOOK_SO)
-        val ok = copyAndChmod(context, src, "lib/${preferredAbi()}/$NATIVE_HOOK_SO", dst)
+        val versionedDst = File(STAGING_DIR, "libkail_native_hook_v${v}.so")
+        val ok = copyAndChmod(context, src, "lib/${preferredAbi()}/$NATIVE_HOOK_SO", versionedDst)
         // Also stage a version-scoped copy under FAKELOC_DIR so it can be
         // System.load()ed from inside system_server by the inject. Never
         // overwrite an existing copy for the same version: system_server may
@@ -509,27 +523,23 @@ object RootDeployer {
         runCatching {
             val fakelocDst = File(FAKELOC_DIR, nativeHookSoName(context))
             if (!fakelocDst.exists() || fakelocDst.length() <= 0L) {
-                rootCmd("cp -f ${dst.absolutePath} ${fakelocDst.absolutePath}", ROOT_COPY_TIMEOUT_MS)
+                rootCmd("cp -f ${versionedDst.absolutePath} ${fakelocDst.absolutePath}", ROOT_COPY_TIMEOUT_MS)
                 rootCmd("chmod 644 ${fakelocDst.absolutePath}")
                 rootCmd("chcon u:object_r:system_file:s0 ${fakelocDst.absolutePath} 2>/dev/null || true")
             } else {
                 KailLog.i(null, TAG, "deployNativeHookLib: keep existing mapped-safe copy ${fakelocDst.absolutePath}")
             }
-            rootCmd(
-                "printf '%s' ${shellQuote(fakelocDst.absolutePath)} > $NATIVE_HOOK_PATH_FILE && " +
-                    "chmod 666 $NATIVE_HOOK_PATH_FILE && " +
-                    "chcon u:object_r:system_file:s0 $NATIVE_HOOK_PATH_FILE 2>/dev/null || true"
-            )
         }.onFailure { KailLog.w(null, TAG, "stage native hook into FAKELOC_DIR: ${it.message}") }
         return ok
     }
 
     fun deployInjectorBin(context: Context): Boolean {
         val abi = preferredAbi()
+        val v = currentAppVersionCode(context)
         val src = File(context.applicationInfo.nativeLibraryDir, "libkail_inject.so")
-        val dst = File(STAGING_DIR, INJECTOR_BIN)
-        val ok = copyAndChmod(context, src, "lib/$abi/libkail_inject.so", dst)
-        if (ok) rootCmd("chmod 755 ${dst.absolutePath}")
+        val versioned = File(STAGING_DIR, "${INJECTOR_BIN}_v${v}")
+        val ok = copyAndChmod(context, src, "lib/$abi/libkail_inject.so", versioned)
+        if (ok) rootCmd("chmod 755 ${versioned.absolutePath}")
         return ok
     }
 
@@ -537,10 +547,12 @@ object RootDeployer {
         var initLoader = false
         val abi = preferredAbi()
         val isArm64 = abi == "arm64-v8a"
+        val v = currentAppVersionCode(context)
         for (name in FAKELOC_LIBS) {
             val src = File(context.applicationInfo.nativeLibraryDir, name)
-            val dst = File(FAKELOC_DIR, name)
-            val ok = copyAndChmod(context, src, "lib/$abi/$name", dst)
+            val versionedName = versionedName(name, v)
+            val versioned = File(FAKELOC_DIR, versionedName)
+            val ok = copyAndChmod(context, src, "lib/$abi/$name", versioned)
             if (ok && name == "libfakeloc_init.so") initLoader = true
 
             // InjectDex.java probes both `<name>.so` (arm) and `<name>64.so`
@@ -549,8 +561,9 @@ object RootDeployer {
             // succeeds regardless of which path it picks first.
             if (ok && isArm64 && !name.contains("64.so")) {
                 val sixtyFour = name.replace(".so", "64.so")
-                val mirror = File(FAKELOC_DIR, sixtyFour)
-                rootCmd("cp -f ${dst.absolutePath} ${mirror.absolutePath}", ROOT_COPY_TIMEOUT_MS)
+                val sixtyFourVersioned = versionedName(sixtyFour, v)
+                val mirror = File(FAKELOC_DIR, sixtyFourVersioned)
+                rootCmd("cp -f ${versioned.absolutePath} ${mirror.absolutePath}", ROOT_COPY_TIMEOUT_MS)
                 rootCmd("chmod 777 ${mirror.absolutePath}")
                 rootCmd("chcon u:object_r:system_file:s0 ${mirror.absolutePath} 2>/dev/null || true")
             }
@@ -558,8 +571,39 @@ object RootDeployer {
         return initLoader
     }
 
+    /**
+     * Atomically replace /data/kail-loc/libfakeloc.so with the APK's
+     * assets/inject.dex when they differ. Unlike [deployDexPayload] (cp -f,
+     * truncates in place), this writes a temp file and mv's it over the
+     * destination so a process that has the old dex mmapped (system_server)
+     * keeps its intact mapping — only new readers see the new dex.
+     */
+    fun refreshDexPayloadAtomic(context: Context) {
+        runCatching {
+            val v = currentAppVersionCode(context)
+            val slim = File(context.cacheDir, "inject.dex")
+            context.assets.open("inject.dex").use { input ->
+                slim.outputStream().use { input.copyTo(it) }
+            }
+            if (!slim.exists() || slim.length() <= 0) return@runCatching
+            val versioned = File(FAKELOC_DIR, "libfakeloc_v${v}.so")
+            // Compare md5 via su (app can't read the device file directly on
+            // all SELinux policies, and versioned may not exist at all yet).
+            val localMd5 = rootCmd("md5sum ${slim.absolutePath} | cut -d' ' -f1", 5000L).trim()
+            val dstMd5 = rootCmd("md5sum ${versioned.absolutePath} 2>/dev/null | cut -d' ' -f1", 5000L).trim()
+            if (localMd5.isNotEmpty() && localMd5 == dstMd5) return@runCatching
+            val tmp = "${versioned.absolutePath}.new"
+            rootCmd("cp -f ${slim.absolutePath} $tmp", ROOT_COPY_TIMEOUT_MS)
+            rootCmd("chmod 644 $tmp")
+            rootCmd("chcon u:object_r:system_file:s0 $tmp 2>/dev/null || true")
+            rootCmd("mv -f $tmp ${versioned.absolutePath}")
+            KailLog.i(null, TAG, "refreshDexPayloadAtomic: dex updated (${slim.length()} bytes)")
+        }.onFailure { KailLog.w(null, TAG, "refreshDexPayloadAtomic: ${it.message}") }
+    }
+
     fun deployDexPayload(context: Context): Boolean {
-        val dst = File(FAKELOC_DIR, "libfakeloc.so")
+        val v = currentAppVersionCode(context)
+        val versioned = File(FAKELOC_DIR, "libfakeloc_v${v}.so")
         // Prefer the slim inject.dex we ship in assets — it contains only the
         // FakeLocation bootstrap classes (com.kail.location.inject.* +
         // com.kail.location.lib.lhooker.*), about 1-2 MB compared to the full
@@ -577,16 +621,16 @@ object RootDeployer {
 
         return runCatching {
             if (slim != null && slim.exists() && slim.length() > 0) {
-                rootCmd("cp -f ${slim.absolutePath} ${dst.absolutePath}", ROOT_COPY_TIMEOUT_MS)
+                rootCmd("cp -f ${slim.absolutePath} ${versioned.absolutePath}", ROOT_COPY_TIMEOUT_MS)
                 KailLog.i(null, TAG, "deployDexPayload: using slim inject.dex (${slim.length()} bytes)")
             } else {
                 val apkPath = context.applicationInfo.sourceDir ?: return@runCatching false
-                rootCmd("cp -f $apkPath ${dst.absolutePath}", ROOT_COPY_TIMEOUT_MS)
+                rootCmd("cp -f $apkPath ${versioned.absolutePath}", ROOT_COPY_TIMEOUT_MS)
                 KailLog.w(null, TAG, "deployDexPayload: assets/inject.dex missing; falling back to full APK ($apkPath)")
             }
-            rootCmd("chmod 644 ${dst.absolutePath}")
-            rootCmd("chcon u:object_r:system_file:s0 ${dst.absolutePath} 2>/dev/null || true")
-            dst.exists() && dst.length() > 0
+            rootCmd("chmod 644 ${versioned.absolutePath}")
+            rootCmd("chcon u:object_r:system_file:s0 ${versioned.absolutePath} 2>/dev/null || true")
+            versioned.exists() && versioned.length() > 0
         }.getOrElse {
             KailLog.e(null, TAG, "deployDexPayload: ${it.message}")
             false
@@ -710,8 +754,26 @@ object RootDeployer {
         }.getOrDefault("")
     }
 
+    private fun currentAppVersionCode(context: Context): Int {
+        return runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionCode
+        }.getOrDefault(0)
+    }
+
+    private fun versionedName(baseName: String, versionCode: Int): String {
+        val dot = baseName.lastIndexOf('.')
+        return if (dot >= 0) "${baseName.substring(0, dot)}_v${versionCode}${baseName.substring(dot)}"
+        else "${baseName}_v${versionCode}"
+    }
+
+    private fun resetDeployDirs() {
+        rootCmd("rm -rf $FAKELOC_DIR $STAGING_DIR 2>/dev/null || true")
+        prepareDirs()
+    }
+
+    /** Standard name → versioned name symlink (relative) so native code paths still resolve. */
     private fun nativeHookSoName(context: Context): String {
-        return "libkail_native_hook_${RootControlPaths.channelForVersion(currentAppVersionName(context))}.so"
+        return "libkail_native_hook_v${currentAppVersionCode(context)}.so"
     }
 
     private fun kernelBootTimeSec(): Long {
@@ -730,21 +792,18 @@ object RootDeployer {
             ?: ""
     }
 
-    private fun prepareSessionLHooker(sessionId: Long): String? {
+    private fun prepareSessionLHooker(context: Context?): String? {
         return runCatching {
             val baseName = preferredLHookerName()
-            val base = File(FAKELOC_DIR, baseName)
+            val v = context?.let { currentAppVersionCode(it) }
+            val resolvedName = if (v != null) versionedName(baseName, v) else baseName
+            val base = File(FAKELOC_DIR, resolvedName)
             if (!base.exists() || base.length() <= 0) {
                 KailLog.w(null, TAG, "prepareSessionLHooker: missing ${base.absolutePath}")
                 return@runCatching null
             }
-            val session = File(FAKELOC_DIR, "${baseName.removeSuffix(".so")}_${sessionId}.so")
-            rootCmd("cp -f ${base.absolutePath} ${session.absolutePath}", ROOT_COPY_TIMEOUT_MS)
-            rootCmd("chmod 644 ${session.absolutePath}")
-            rootCmd("chcon u:object_r:system_file:s0 ${session.absolutePath} 2>/dev/null || true")
-            rootCmd("printf '%s' '${session.absolutePath}' > $LHOOKER_PATH_FILE && chmod 666 $LHOOKER_PATH_FILE && chcon u:object_r:system_file:s0 $LHOOKER_PATH_FILE 2>/dev/null || true")
-            KailLog.persist(null, TAG, "prepareSessionLHooker: ${session.absolutePath}")
-            session.absolutePath
+            KailLog.persist(null, TAG, "prepareSessionLHooker: ${base.absolutePath}")
+            base.absolutePath
         }.getOrElse {
             KailLog.w(null, TAG, "prepareSessionLHooker: ${it.message}")
             null

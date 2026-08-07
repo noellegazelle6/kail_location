@@ -15,21 +15,22 @@ import com.kail.location.utils.KailLog
 
 /**
  * 负责 developer 模式下 Mock Location Provider 的注册、更新与清理。
+ *
+ * 注意：系统层面的测试 Provider 是全局资源，App 进程被回收/重建或系统
+ * LocationManagerService 重启时会被清掉。因此 [setLocation] 在写入失败时
+ * 会自动重新注册（自愈），[ensureProviders] 保持幂等（只增不删）。
  */
 class MockLocationProvider(
     private val context: Context,
     private val locationManager: LocationManager
 ) {
 
+    private var lastRecoverLogAt = 0L
+    private var lastToastAt = 0L
+
     fun ensureProviders() {
-        try {
-            removeTestProviderNetwork()
-            addTestProviderNetwork()
-            removeTestProviderGPS()
-            addTestProviderGPS()
-        } catch (e: Throwable) {
-            KailLog.e(null, "MockLocationProvider", "Error ensuring providers: ${e.message}")
-        }
+        ensureTestProviderGPS()
+        ensureTestProviderNetwork()
     }
 
     fun setLocation(
@@ -40,18 +41,35 @@ class MockLocationProvider(
         speed: Double,
         isStop: Boolean
     ) {
-        setLocationGPS(lat, lng, alt, bea, speed, isStop)
-        setLocationNetwork(lat, lng, alt, bea, speed, isStop)
+        var gpsOk = setLocationGPS(lat, lng, alt, bea, speed, isStop)
+        var netOk = setLocationNetwork(lat, lng, alt, bea, speed, isStop)
+        if (!gpsOk || !netOk) {
+            ensureProviders()
+            if (!gpsOk) {
+                gpsOk = setLocationGPS(lat, lng, alt, bea, speed, isStop)
+            }
+            if (!netOk) {
+                setLocationNetwork(lat, lng, alt, bea, speed, isStop)
+            }
+        }
     }
 
     fun cleanup() {
-        removeTestProviderNetwork()
-        removeTestProviderGPS()
+        removeTestProvider(LocationManager.NETWORK_PROVIDER)
+        removeTestProvider(LocationManager.GPS_PROVIDER)
+    }
+
+    private fun ensureTestProviderGPS() {
+        addTestProviderGPS()
+    }
+
+    private fun ensureTestProviderNetwork() {
+        addTestProviderNetwork()
     }
 
     @SuppressLint("WrongConstant")
-    private fun addTestProviderGPS() {
-        try {
+    private fun addTestProviderGPS(): Boolean {
+        return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 locationManager.addTestProvider(
                     LocationManager.GPS_PROVIDER, false, true, false,
@@ -67,27 +85,22 @@ class MockLocationProvider(
             if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, true)
             }
+            true
         } catch (e: Exception) {
-            KailLog.e(null, "MockLocationProvider", "addTestProviderGPS error: ${e.message}")
-            showMockLocationPermissionToast(e)
-        }
-    }
-
-    private fun removeTestProviderGPS() {
-        try {
-            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                locationManager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, false)
-                locationManager.removeTestProvider(LocationManager.GPS_PROVIDER)
+            if (isAlreadyRegistered(e)) {
+                true
+            } else {
+                KailLog.e(null, "MockLocationProvider", "addTestProviderGPS error: ${e.message}")
+                showMockLocationPermissionToast(e)
+                false
             }
-        } catch (e: Exception) {
-            KailLog.e(null, "MockLocationProvider", "removeTestProviderGPS error: ${e.message}")
         }
     }
 
     private fun setLocationGPS(
         lat: Double, lng: Double, alt: Double, bea: Float, speed: Double, isStop: Boolean
-    ) {
-        try {
+    ): Boolean {
+        return try {
             val loc = Location(LocationManager.GPS_PROVIDER).apply {
                 accuracy = 1.0f
                 this.altitude = alt
@@ -108,14 +121,18 @@ class MockLocationProvider(
                 extras = android.os.Bundle().apply { putInt("satellites", 7) }
             }
             locationManager.setTestProviderLocation(LocationManager.GPS_PROVIDER, loc)
+            true
         } catch (e: Exception) {
-            KailLog.e(null, "MockLocationProvider", "setLocationGPS error: ${e.message}")
+            if (throttleRecoverLog()) {
+                KailLog.e(null, "MockLocationProvider", "setLocationGPS error: ${e.message}")
+            }
+            false
         }
     }
 
     @SuppressLint("WrongConstant")
-    private fun addTestProviderNetwork() {
-        try {
+    private fun addTestProviderNetwork(): Boolean {
+        return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 locationManager.addTestProvider(
                     LocationManager.NETWORK_PROVIDER, true, false,
@@ -133,35 +150,22 @@ class MockLocationProvider(
             if (!locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                 locationManager.setTestProviderEnabled(LocationManager.NETWORK_PROVIDER, true)
             }
-        } catch (e: SecurityException) {
-            KailLog.e(null, "MockLocationProvider", "addTestProviderNetwork error: ${e.message}")
-            showMockLocationPermissionToast(e)
-        }
-    }
-
-    private fun showMockLocationPermissionToast(e: Exception) {
-        if (e.message?.contains("not allowed to perform MOCK_LOCATION") == true) {
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(context, context.getString(R.string.service_set_mock_app), Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    private fun removeTestProviderNetwork() {
-        try {
-            if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                locationManager.setTestProviderEnabled(LocationManager.NETWORK_PROVIDER, false)
-                locationManager.removeTestProvider(LocationManager.NETWORK_PROVIDER)
-            }
+            true
         } catch (e: Exception) {
-            KailLog.e(null, "MockLocationProvider", "removeTestProviderNetwork error: ${e.message}")
+            if (isAlreadyRegistered(e)) {
+                true
+            } else {
+                KailLog.e(null, "MockLocationProvider", "addTestProviderNetwork error: ${e.message}")
+                if (e is SecurityException) showMockLocationPermissionToast(e)
+                false
+            }
         }
     }
 
     private fun setLocationNetwork(
         lat: Double, lng: Double, alt: Double, bea: Float, speed: Double, isStop: Boolean
-    ) {
-        try {
+    ): Boolean {
+        return try {
             val loc = Location(LocationManager.NETWORK_PROVIDER).apply {
                 accuracy = 1.0f
                 this.altitude = alt
@@ -182,8 +186,46 @@ class MockLocationProvider(
                 extras = android.os.Bundle().apply { putInt("satellites", 7) }
             }
             locationManager.setTestProviderLocation(LocationManager.NETWORK_PROVIDER, loc)
+            true
         } catch (e: Exception) {
-            KailLog.e(null, "MockLocationProvider", "setLocationNetwork error: ${e.message}")
+            if (throttleRecoverLog()) {
+                KailLog.e(null, "MockLocationProvider", "setLocationNetwork error: ${e.message}")
+            }
+            false
+        }
+    }
+
+    private fun removeTestProvider(provider: String) {
+        try {
+            locationManager.setTestProviderEnabled(provider, false)
+        } catch (e: Exception) {
+            return
+        }
+        try {
+            locationManager.removeTestProvider(provider)
+        } catch (e: Exception) {
+            KailLog.e(null, "MockLocationProvider", "removeTestProvider($provider) error: ${e.message}")
+        }
+    }
+
+    private fun isAlreadyRegistered(e: Exception): Boolean =
+        e.message?.contains("already exists") == true
+
+    private fun throttleRecoverLog(): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastRecoverLogAt < 2000) return false
+        lastRecoverLogAt = now
+        return true
+    }
+
+    private fun showMockLocationPermissionToast(e: Exception) {
+        if (e.message?.contains("not allowed to perform MOCK_LOCATION") == true) {
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastToastAt < 3000) return
+            lastToastAt = now
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context, context.getString(R.string.service_set_mock_app), Toast.LENGTH_LONG).show()
+            }
         }
     }
 }

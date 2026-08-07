@@ -1,8 +1,6 @@
 package com.kail.location.inject.utils;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 
 /**
  * Inject-side bridge to {@code libkail_native_hook.so} (native_hook/hook.cpp),
@@ -22,7 +20,7 @@ import java.io.FileReader;
 public final class NativeStepHook {
 
     private static final String TAG = "NativeStepHook";
-    private static final String SO_PATH_FILE = "/data/kail-loc/native_hook_path.txt";
+    private static final String HOOK_SO_DIR = "/data/kail-loc";
     private static final String LEGACY_SO_PATH = "/data/kail-loc/libkail_native_hook.so";
 
     private static volatile boolean loaded = false;
@@ -61,28 +59,17 @@ public final class NativeStepHook {
     }
 
     private static String resolveSoPath() {
-        BufferedReader reader = null;
         try {
-            File file = new File(SO_PATH_FILE);
-            if (file.exists() && file.length() > 0) {
-                reader = new BufferedReader(new FileReader(file));
-                String path = reader.readLine();
-                if (path != null) {
-                    path = path.trim();
-                    if (path.length() > 0 && new File(path).exists()) {
-                        return path;
-                    }
-                }
+            File dir = new File(HOOK_SO_DIR);
+            File[] files = dir.listFiles((d, name) ->
+                name.startsWith("libkail_native_hook_v") && name.endsWith(".so"));
+            if (files != null && files.length > 0) {
+                String path = files[0].getAbsolutePath();
+                InjectLog.i(TAG, "resolved " + path);
+                return path;
             }
         } catch (Throwable t) {
             InjectLog.w(TAG, "resolve so path failed: " + t.getMessage());
-        } finally {
-            if (reader != null) {
-                try {
-                    reader.close();
-                } catch (Throwable ignored) {
-                }
-            }
         }
         return LEGACY_SO_PATH;
     }

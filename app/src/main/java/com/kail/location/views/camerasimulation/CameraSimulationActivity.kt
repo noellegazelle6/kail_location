@@ -1,4 +1,4 @@
-package com.kail.location.views.navigationsimulation
+package com.kail.location.views.camerasimulation
 
 import android.content.Intent
 import android.os.Bundle
@@ -7,20 +7,21 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.kail.location.R
-import com.kail.location.views.base.BaseActivity
-import com.kail.location.viewmodels.NavigationSimulationViewModel
-import com.kail.location.views.theme.locationTheme
-import com.kail.location.views.routesimulation.RouteSimulationActivity
-import com.kail.location.views.locationsimulation.LocationSimulationActivity
 import com.kail.location.utils.GoUtils
+import com.kail.location.viewmodels.CameraSimulationViewModel
+import com.kail.location.views.base.BaseActivity
+import com.kail.location.views.locationsimulation.LocationSimulationActivity
+import com.kail.location.views.navigationsimulation.NavigationSimulationActivity
+import com.kail.location.views.routesimulation.RouteSimulationActivity
+import com.kail.location.views.theme.locationTheme
 
-class NavigationSimulationActivity : BaseActivity() {
+class CameraSimulationActivity : BaseActivity() {
 
-    private val viewModel: NavigationSimulationViewModel by viewModels()
+    private val viewModel: CameraSimulationViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         val version = try {
             packageManager.getPackageInfo(packageName, 0).versionName ?: "Unknown"
         } catch (e: Exception) {
@@ -31,7 +32,7 @@ class NavigationSimulationActivity : BaseActivity() {
             val runMode by viewModel.runMode.collectAsState()
 
             locationTheme {
-                NavigationSimulationScreen(
+                CameraSimulationScreen(
                     viewModel = viewModel,
                     onNavigate = { id ->
                         when (id) {
@@ -44,7 +45,8 @@ class NavigationSimulationActivity : BaseActivity() {
                                 finish()
                             }
                             R.id.nav_navigation_simulation -> {
-                                // Already here
+                                startActivity(Intent(this, NavigationSimulationActivity::class.java))
+                                finish()
                             }
                             R.id.nav_nfc_simulation -> {
                                 startActivity(Intent(this, com.kail.location.views.nfcsimulation.NfcSimulationActivity::class.java))
@@ -62,7 +64,7 @@ class NavigationSimulationActivity : BaseActivity() {
                                 startActivity(Intent(this, com.kail.location.views.cellsimulation.CellSimulationActivity::class.java))
                             }
                             R.id.nav_camera_simulation -> {
-                                startActivity(Intent(this, com.kail.location.views.camerasimulation.CameraSimulationActivity::class.java))
+                                // Already here
                             }
                             R.id.nav_sandbox -> {
                                 startActivity(Intent(this, com.kail.location.views.sandbox.SandboxActivity::class.java))
@@ -92,9 +94,6 @@ class NavigationSimulationActivity : BaseActivity() {
                                     android.widget.Toast.makeText(this, getString(R.string.error_cannot_open_browser), android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             }
-                            R.id.nav_update -> {
-                                viewModel.checkUpdate(this)
-                            }
                             else -> {
                                 android.widget.Toast.makeText(this, getString(R.string.error_under_development), android.widget.Toast.LENGTH_SHORT).show()
                             }
@@ -111,7 +110,7 @@ class NavigationSimulationActivity : BaseActivity() {
                         }
                     },
                     onXposedSettingsSelected = {
-                        startActivity(android.content.Intent(this, com.kail.location.views.xposedsettings.XposedSettingsActivity::class.java))
+                        startActivity(Intent(this, com.kail.location.views.xposedsettings.XposedSettingsActivity::class.java))
                     }
                 )
             }

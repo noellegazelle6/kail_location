@@ -47,6 +47,10 @@ class IndependentSimulationActivity : BaseActivity() {
                     startActivity(Intent(this, com.kail.location.views.cellsimulation.CellSimulationActivity::class.java))
                     finish()
                 }
+                R.id.nav_camera_simulation -> {
+                    startActivity(Intent(this, com.kail.location.views.camerasimulation.CameraSimulationActivity::class.java))
+                    finish()
+                }
                 R.id.nav_nfc_simulation -> {
                     startActivity(Intent(this, com.kail.location.views.nfcsimulation.NfcSimulationActivity::class.java))
                     finish()

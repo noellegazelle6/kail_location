@@ -831,7 +831,7 @@ class ServiceGoRoot : Service() {
         if (list.isNotEmpty()) {
             Thread({
                 for (pkg in list) {
-                    runCatching { RootDeployer.injectAppProcess(pkg) }
+                    runCatching { RootDeployer.injectAppProcess(applicationContext, pkg) }
                         .onFailure { KailLog.w(this, TAG, "inject $pkg: ${it.message}") }
                 }
             }, "ServiceGoRootTargetInject").start()
@@ -930,7 +930,7 @@ class ServiceGoRoot : Service() {
         // Hooks only fire in an app process after it has been app-hook-injected.
         if (hideRootEnabled) {
             for (pkg in pkgs) {
-                runCatching { RootDeployer.injectAppProcess(pkg) }
+                runCatching { RootDeployer.injectAppProcess(applicationContext, pkg) }
                     .onFailure { KailLog.e(this, TAG, "inject $pkg (hide): ${it.message}") }
             }
         }
@@ -1491,7 +1491,7 @@ class ServiceGoRoot : Service() {
         // otherwise apps that poll cells directly (rather than via a
         // PhoneStateListener push) keep seeing the real towers.
         Thread({
-            runCatching { RootDeployer.injectAppProcess("com.android.phone") }
+            runCatching { RootDeployer.injectAppProcess(applicationContext, "com.android.phone") }
                 .onFailure { KailLog.e(this, TAG, "inject com.android.phone: ${it.message}") }
         }, "ServiceGoRootPhoneInject").start()
     }

@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
@@ -105,6 +107,7 @@ fun LocationSimulationScreen(
     var renameTarget by remember { mutableStateOf<HistoryRecord?>(null) }
     var renameText by remember { mutableStateOf("") }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var isCardExpanded by remember { mutableStateOf(true) }
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -178,89 +181,129 @@ fun LocationSimulationScreen(
                             .padding(top = 16.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.loc_sim_target),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = locationInfo.name,
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = locationInfo.address,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.Gray
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = stringResource(
-                                    R.string.loc_sim_lat_lng,
-                                    String.format("%.2f", locationInfo.longitude),
-                                    String.format("%.2f", locationInfo.latitude)
-                                ),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            // Collapsible header row (always visible, tap to expand)
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { isCardExpanded = !isCardExpanded },
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Button(
-                                    onClick = onToggleSimulation,
-                                    enabled = !isStarting,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isSimulating) Color.Red else MaterialTheme.colorScheme.primary,
-                                        disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f),
-                                        disabledContentColor = Color.White
-                                    ),
-                                    shape = RoundedCornerShape(24.dp)
-                                ) {
-                                    if (isStarting) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(18.dp),
-                                            strokeWidth = 2.dp,
-                                            color = Color.White
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(stringResource(R.string.sim_starting))
-                                    } else {
-                                        Text(
-                                            if (isSimulating) stringResource(R.string.loc_sim_stop) else stringResource(
-                                                R.string.loc_sim_start
-                                            )
-                                        )
-                                    }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = locationInfo.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            R.string.loc_sim_lat_lng,
+                                            String.format("%.2f", locationInfo.longitude),
+                                            String.format("%.2f", locationInfo.latitude)
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
                                 }
-                                Spacer(modifier = Modifier.weight(1f))
+                            }
 
-                                // Joystick Toggle
+                            // Expanded content
+                            if (isCardExpanded) {
                                 Text(
-                                    text = stringResource(R.string.loc_sim_joystick),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    text = stringResource(R.string.loc_sim_target),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = locationInfo.name,
+                                    style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Switch(
-                                    checked = isJoystickEnabled,
-                                    onCheckedChange = onJoystickToggle,
-                                    modifier = Modifier.scale(0.8f)
+                                Text(
+                                    text = locationInfo.address,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Gray
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                IconButton(onClick = { showSettingsDialog = true }) {
-                                    Icon(
-                                        Icons.Default.Settings,
-                                        contentDescription = "Settings",
-                                        tint = MaterialTheme.colorScheme.primary
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = stringResource(
+                                        R.string.loc_sim_lat_lng,
+                                        String.format("%.2f", locationInfo.longitude),
+                                        String.format("%.2f", locationInfo.latitude)
+                                    ),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Button(
+                                        onClick = onToggleSimulation,
+                                        enabled = !isStarting,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (isSimulating) Color.Red else MaterialTheme.colorScheme.primary,
+                                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f),
+                                            disabledContentColor = Color.White
+                                        ),
+                                        shape = RoundedCornerShape(24.dp)
+                                    ) {
+                                        if (isStarting) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(18.dp),
+                                                strokeWidth = 2.dp,
+                                                color = Color.White
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(stringResource(R.string.sim_starting))
+                                        } else {
+                                            Text(
+                                                if (isSimulating) stringResource(R.string.loc_sim_stop) else stringResource(
+                                                    R.string.loc_sim_start
+                                                )
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.weight(0.5f))
+
+                                    IconButton(
+                                        onClick = { isCardExpanded = !isCardExpanded },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            if (isCardExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = if (isCardExpanded) "Collapse" else "Expand",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.weight(0.5f))
+
+                                    // Joystick Toggle
+                                    Text(
+                                        text = stringResource(R.string.loc_sim_joystick),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
                                     )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Switch(
+                                        checked = isJoystickEnabled,
+                                        onCheckedChange = onJoystickToggle,
+                                        modifier = Modifier.scale(0.8f)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(onClick = { showSettingsDialog = true }) {
+                                        Icon(
+                                            Icons.Default.Settings,
+                                            contentDescription = "Settings",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                 }
                             }
                         }

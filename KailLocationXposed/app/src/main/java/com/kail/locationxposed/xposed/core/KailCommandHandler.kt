@@ -309,6 +309,24 @@ internal object KailCommandHandler {
                 }
                 return true
             }
+            "force_stop" -> {
+                val targetPkg = out.getString("package") ?: return false
+                KailLog.i(null, "XPOSED", "KAIL接收：force_stop pkg=$targetPkg")
+                try {
+                    val amClz = Class.forName("android.app.ActivityManager")
+                    val service = amClz.getDeclaredField("IActivityManagerSingleton")
+                    service.isAccessible = true
+                    val singleton = service.get(null)
+                    val amService = singleton.javaClass.getMethod("get").invoke(singleton)
+                    amService.javaClass.getMethod("forceStopPackage", String::class.java).invoke(amService, targetPkg)
+                    out.putBoolean("ok", true)
+                } catch (t: Throwable) {
+                    out.putBoolean("ok", false)
+                    out.putString("error", t.message)
+                    KailLog.e(null, "XPOSED", "force_stop failed: ${t.message}")
+                }
+                return true
+            }
             else -> return false
         }
     }

@@ -60,6 +60,10 @@ class CellSimulationActivity : BaseActivity() {
                 R.id.nav_cell_simulation -> {
                     // Already here
                 }
+                R.id.nav_camera_simulation -> {
+                    startActivity(Intent(this, com.kail.location.views.camerasimulation.CameraSimulationActivity::class.java))
+                    finish()
+                }
                 R.id.nav_sandbox -> {
                     startActivity(Intent(this, com.kail.location.views.sandbox.SandboxActivity::class.java))
                     finish()

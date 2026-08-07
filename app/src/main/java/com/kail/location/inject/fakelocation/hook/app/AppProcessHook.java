@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import com.kail.location.inject.fakelocation.hook.HookClassLoaderUtils;
 import com.kail.location.inject.fakelocation.hook.phone.PhoneInterfaceManagerHook;
+import com.kail.location.inject.fakelocation.hook.camera.CameraHookMain;
 
 /* JADX INFO: renamed from: ֏.֏.ހ.֏.ށ.֏, reason: contains not printable characters */
 /* JADX INFO: loaded from: /home/kail/code/tool/jadx-1.5.5/bin/classes.dex */
@@ -67,6 +68,12 @@ public class AppProcessHook {
             }
             if (MockLocationServiceManager.getInstance().isMocking() && MockLocationServiceManager.getInstance().isMockGpsStatusEnabled() && isAllowMockPackage(str) && isFuncAvailable(str, MockLocationServiceManager.getInstance().getSafeApps(), "l")) {
                 ClientMockHook.hook(str, obj.getClass().getClassLoader());
+            }
+            // Virtual camera: self-gated by /data/kail-loc/camera_config.json.
+            try {
+                CameraHookMain.hook(str, obj.getClass().getClassLoader());
+            } catch (Throwable camTh) {
+                camTh.printStackTrace();
             }
             if (z2 || z3) {
                 RootHideHook.hook(obj.getClass().getClassLoader());

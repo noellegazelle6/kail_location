@@ -18,4 +18,5 @@
     <item name="nav_navigation_simulation" type="id"/>
     <item name="nav_sandbox" type="id"/>
     <item name="nav_root_app_hide" type="id"/>
+    <item name="nav_camera_simulation" type="id"/>
 </resources>

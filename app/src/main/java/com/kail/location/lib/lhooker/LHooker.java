@@ -1,9 +1,7 @@
 package com.kail.location.lib.lhooker;
 
 import android.os.Build;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
@@ -15,7 +13,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class LHooker {
-    private static final String SESSION_LIBRARY_PATH_FILE = "/data/kail-loc/lhooker_path.txt";
     private static volatile String sessionLibraryPath;
     public static boolean initialized;
     private static boolean isHooking;
@@ -403,35 +400,23 @@ public class LHooker {
     }
 
     private static String readSessionLibraryPath() {
-        BufferedReader reader = null;
         try {
-            File pathFile = new File(SESSION_LIBRARY_PATH_FILE);
-            if (!pathFile.exists() || pathFile.length() <= 0) {
-                return null;
-            }
-            reader = new BufferedReader(new FileReader(pathFile));
-            String line = reader.readLine();
-            if (line == null) {
-                return null;
-            }
-            line = line.trim();
-            if (line.isEmpty()) {
-                return null;
-            }
-            File library = new File(line);
-            if (library.exists() && library.length() > 0) {
-                return line;
-            }
-            com.kail.location.inject.utils.InjectLog.persist("LHooker", "session library path missing=", line);
-        } catch (Throwable t) {
-            com.kail.location.inject.utils.InjectLog.e("LHooker", "read session library path failed", t);
-        } finally {
-            if (reader != null) {
-                try {
-                    reader.close();
-                } catch (Throwable ignored) {
+            File dir = new File("/data/kail-loc");
+            File[] files = dir.listFiles((d, name) ->
+                name.startsWith("liblhooker") && name.contains("_v") && name.endsWith(".so"));
+            if (files != null && files.length > 0) {
+                for (File f : files) {
+                    String name = f.getName();
+                    boolean match = false;
+                    if (isDeviceArm64()) match = name.contains("64");
+                    else if (isDeviceX86_64()) match = name.contains("x86_64");
+                    else if (isDeviceX86()) match = name.contains("x86") && !name.contains("x86_64");
+                    else match = !name.contains("64") && !name.contains("x86");
+                    if (match) return f.getAbsolutePath();
                 }
             }
+        } catch (Throwable t) {
+            com.kail.location.inject.utils.InjectLog.e("LHooker", "scan lhooker path failed", t);
         }
         return null;
     }

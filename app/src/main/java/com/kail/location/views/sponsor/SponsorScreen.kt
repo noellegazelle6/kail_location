@@ -2,7 +2,6 @@ package com.kail.location.views.sponsor
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,15 +26,12 @@ import com.kail.location.network.RuoYiClient
 fun SponsorScreen(
     onBackClick: () -> Unit,
     onCreateCheckout: () -> Unit,
-    onWechatCheckout: () -> Unit,
     isCreatingCheckout: Boolean,
     checkoutError: String?,
     plans: List<RuoYiClient.SubscriptionPlan>,
     selectedPlanId: Long?,
     onSelectPlan: (Long) -> Unit,
-    plansLoaded: Boolean,
-    wechatPayUrl: String?,
-    onCopyUrl: (String) -> Unit
+    plansLoaded: Boolean
 ) {
     val context = LocalContext.current
     val isLoggedIn = AuthManager.isLoggedIn
@@ -175,17 +171,8 @@ fun SponsorScreen(
                     } else {
                         Icon(Icons.Default.ShoppingCart, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.sponsor_credit_card), fontSize = 16.sp)
+                        Text(stringResource(R.string.sponsor_go_pay), fontSize = 16.sp)
                     }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = onWechatCheckout,
-                    enabled = !isCreatingCheckout && selectedPlanId != null,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Text(stringResource(R.string.sponsor_wechat_pay), fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
                 }
             }
 
@@ -196,29 +183,6 @@ fun SponsorScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
                 ) {
                     Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
-                }
-            }
-
-            wechatPayUrl?.let { url ->
-                Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(stringResource(R.string.sponsor_wechat_hint), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        SelectionContainer {
-                            Text(url, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Spacer(modifier = Modifier.weight(1f))
-                            Button(onClick = { onCopyUrl(url) }) {
-                                Text(stringResource(R.string.sponsor_copy))
-                            }
-                        }
-                    }
                 }
             }
 

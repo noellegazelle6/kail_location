@@ -89,6 +89,10 @@ class SandboxActivity : BaseActivity() {
                                 startActivity(Intent(this, com.kail.location.views.cellsimulation.CellSimulationActivity::class.java))
                                 finish()
                             }
+                            R.id.nav_camera_simulation -> {
+                                startActivity(Intent(this, com.kail.location.views.camerasimulation.CameraSimulationActivity::class.java))
+                                finish()
+                            }
                             R.id.nav_settings -> {
                                 startActivity(Intent(this, com.kail.location.views.settings.SettingsActivity::class.java))
                             }

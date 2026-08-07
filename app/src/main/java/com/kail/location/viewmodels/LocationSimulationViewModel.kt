@@ -503,6 +503,19 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
             latitude = record.latitudeBd09.toDoubleOrNull() ?: 0.0,
             longitude = record.longitudeBd09.toDoubleOrNull() ?: 0.0
         )
+        // 模拟运行中 → 直接下发新坐标到已启动的服务
+        if (_isSimulating.value) {
+            val app = getApplication<Application>()
+            val currentRunMode = sharedPreferences.getString("setting_run_mode", "developer") ?: "developer"
+            val serviceClass = getServiceClass(currentRunMode)
+            val intent = Intent(app, serviceClass)
+            intent.putExtra(LocationPickerActivity.LNG_MSG_ID, _locationInfo.value.longitude)
+            intent.putExtra(LocationPickerActivity.LAT_MSG_ID, _locationInfo.value.latitude)
+            intent.putExtra(LocationPickerActivity.ALT_MSG_ID,
+                sharedPreferences.getString("setting_altitude", "55.0")?.toDoubleOrNull() ?: 55.0)
+            intent.putExtra("EXTRA_IS_ROUTE_SIMULATION", false)
+            ContextCompat.startForegroundService(app, intent)
+        }
     }
 
     fun moveFavorite(id: Int, up: Boolean) {

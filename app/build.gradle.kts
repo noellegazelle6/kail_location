@@ -15,8 +15,8 @@ android {
         applicationId = "com.kail.location"
         minSdk = 27
         targetSdk = 36
-        versionCode = 39
-        versionName = "1.6.6"
+        versionCode = 40
+        versionName = "1.6.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -223,12 +223,19 @@ fun findD8Jar(): java.io.File? {
         include("**/lib/r8.jar")
         include("**/lib/d8.jar")
     }.forEach { candidates.add(it) }
+    // build-tools also ship d8.jar — prefer the newest version available.
+    fileTree("${sdkDir.absolutePath}/build-tools").matching {
+        include("**/lib/d8.jar")
+        include("**/lib/r8.jar")
+    }.forEach { candidates.add(it) }
     val gradleHome = gradle.gradleUserHomeDir
     fileTree(gradleHome) {
         include("caches/**/r8-*.jar")
         include("caches/**/r8/**/r8.jar")
     }.forEach { candidates.add(it) }
-    return candidates.firstOrNull { it.exists() && it.length() > 0 }
+    return candidates
+        .filter { it.exists() && it.length() > 0 }
+        .maxByOrNull { it.absolutePath }
 }
 
 androidComponents {
@@ -243,6 +250,14 @@ androidComponents {
 
             dependsOn("compile${variantNameCap}JavaWithJavac")
             dependsOn("compile${variantNameCap}Kotlin")
+
+            outputs.file(outFile.get().asFile)
+            val inputClassDirs = listOf(
+                file("${buildDir}/intermediates/javac/${variant.name}/classes"),
+                file("${buildDir}/intermediates/javac/${variant.name}/compile${variantNameCap}JavaWithJavac/classes"),
+                file("${buildDir}/tmp/kotlin-classes/${variant.name}")
+            ).filter { it.exists() }
+            inputs.files(inputClassDirs)
 
             doLast {
                 val r8Jar = findD8Jar()

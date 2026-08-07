@@ -69,6 +69,10 @@ class XposedSettingsActivity : BaseActivity() {
                                 startActivity(Intent(this, com.kail.location.views.cellsimulation.CellSimulationActivity::class.java))
                                 finish()
                             }
+                            R.id.nav_camera_simulation -> {
+                                startActivity(Intent(this, com.kail.location.views.camerasimulation.CameraSimulationActivity::class.java))
+                                finish()
+                            }
                             R.id.nav_sandbox -> {
                                 startActivity(Intent(this, com.kail.location.views.sandbox.SandboxActivity::class.java))
                                 finish()

@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <dlfcn.h>
+#include <dirent.h>
 
 #include <jni.h>
 #include <android/log.h>
@@ -35,9 +36,30 @@ namespace fakeloc {
 
 static const char *kLogTag = "LINJECT.native";
 
-// Path to the on-disk payload .dex/.so used by the loaders. Re-pointed to the
-// kail-branded staging directory.
-static const char *kPayloadPath = "/data/kail-loc/libfakeloc.so";
+// Resolve the on-disk payload .dex path at runtime by scanning for
+// libfakeloc_v*.so.  This avoids baking a version-suffixed path at build time
+// and eliminates the need for a standard-name symlink.
+static const char *resolvePayloadPath() {
+  static char buf[256];
+  // First check whether we already resolved it.
+  if (buf[0] != '\0') return buf;
+
+  DIR *dir = opendir("/data/kail-loc");
+  if (!dir) return "/data/kail-loc/libfakeloc.so";   // fallback
+
+  struct dirent *ent;
+  while ((ent = readdir(dir)) != nullptr) {
+    if (strncmp(ent->d_name, "libfakeloc_v", 12) == 0 &&
+        strcmp(ent->d_name + strlen(ent->d_name) - 3, ".so") == 0) {
+      snprintf(buf, sizeof(buf), "/data/kail-loc/%s", ent->d_name);
+      closedir(dir);
+      return buf;
+    }
+  }
+  closedir(dir);
+  return "/data/kail-loc/libfakeloc.so";  // fallback
+}
+#define kPayloadPath (fakeloc::resolvePayloadPath())
 
 // MD5 gate for the on-disk payload.
 //
