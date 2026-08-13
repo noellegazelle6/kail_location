@@ -94,33 +94,23 @@ static uint64_t init(JNIEnv *env, const char *sessionHookerPath) {
   KLOGI(kLogTag, "InitApp is Executing");
   writeInitTrace("InitApp executing");
 
-  // ----- MODIFIED: bypass MD5 and signature verification -----
-  // int md5Result = verifyApkMd5();
-  // if (md5Result != 0) {
-  //   KLOGE(kLogTag, "verifyApkMd5 failed: %d", md5Result);
-  //   writeInitTrace("verifyApkMd5 failed: %d", md5Result);
-  //   return kRunVerifyMd5Failed;
-  // }
-  int md5Result = 0;  // force success
-  writeInitTrace("verifyApkMd5 bypassed (forced success)");
-  // ------------------------------------------------------------
-
+  int md5Result = verifyApkMd5();
+  if (md5Result != 0) {
+    KLOGE(kLogTag, "verifyApkMd5 failed: %d", md5Result);
+    writeInitTrace("verifyApkMd5 failed: %d", md5Result);
+    return kRunVerifyMd5Failed;
+  }
   if (!env) {
     KLOGI(kLogTag, "jni_env is NULL!!");
     writeInitTrace("jni_env is NULL");
     return kRunNullEnv;
   }
-
-  // ----- MODIFIED: bypass signature verification -----
-  // int sigResult = verifyReleaseSignature(env);
-  // if (sigResult != 0) {
-  //   KLOGE(kLogTag, "verifyReleaseSignature failed: %d", sigResult);
-  //   writeInitTrace("verifyReleaseSignature failed: %d", sigResult);
-  //   return kRunVerifySignatureFailed;
-  // }
-  int sigResult = 0;  // force success
-  writeInitTrace("verifyReleaseSignature bypassed (forced success)");
-  // ----------------------------------------------------
+  int sigResult = verifyReleaseSignature(env);
+  if (sigResult != 0) {
+    KLOGE(kLogTag, "verifyReleaseSignature failed: %d", sigResult);
+    writeInitTrace("verifyReleaseSignature failed: %d", sigResult);
+    return kRunVerifySignatureFailed;
+  }
 
   jobject context = getGlobalContext(env);
   if (!context) {

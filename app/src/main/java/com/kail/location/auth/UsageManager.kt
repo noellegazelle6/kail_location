@@ -31,20 +31,19 @@ object UsageManager {
     fun bootReadyThresholdSeconds(): Int = (BOOT_READY_THRESHOLD_MS / 1000).toInt()
 
     /**
-     * Check if user can start simulation (does NOT consume a count)
-     * 已去除登录、订阅、免费次数限制，始终返回 true。
+     * 登录 / 订阅 / 每日免费次数闸门已移除，模拟可直接开始。
+     * 保留原有调用入口以维持各处 ViewModel 的调用点不变，仅始终放行。
      */
     suspend fun canStartSimulation(context: Context): Boolean {
-        KailLog.i(context, TAG, "canStartSimulation: no restrictions, always allowed")
+        KailLog.i(context, TAG, "canStartSimulation: usage gate removed, always allowed")
         return true
     }
 
     /**
-     * Consume one simulation count. Call this when user actually starts simulating.
-     * 已去除登录、订阅、免费次数限制，始终返回 true，不消耗任何计数。
+     * 扣次逻辑已移除（登录 / 订阅 / 每日次数限制均不再生效），始终返回成功。
      */
     suspend fun consumeSimulation(context: Context): Boolean {
-        KailLog.i(context, TAG, "consumeSimulation: no restrictions, always successful")
         return true
     }
 }
+

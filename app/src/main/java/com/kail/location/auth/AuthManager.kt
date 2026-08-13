@@ -24,9 +24,9 @@ object AuthManager {
     private val _email = mutableStateOf("")
     private val _isSubscribed = mutableStateOf(false)
 
-    val isLoggedIn: Boolean get() = true
+    val isLoggedIn: Boolean get() = _isLoggedIn.value
     val email: String get() = _email.value
-    val isSubscribed: Boolean get() = true
+    val isSubscribed: Boolean get() = _isSubscribed.value
     val isLoggedInState get() = _isLoggedIn
     val emailState get() = _email
     val isSubscribedState get() = _isSubscribed

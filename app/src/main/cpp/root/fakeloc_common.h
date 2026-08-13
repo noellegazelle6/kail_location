@@ -73,17 +73,9 @@ static const char *kPayloadMd5  = "";
 // Release signing certificate (DER hex). This must match
 // PackageInfo.signatures[0].toCharsString() of the host package on device.
 //
-// The default value below is the AOSP debug keystore (~/.android/debug.keystore)
-// certificate so debug builds of com.kail.location pass the gate out of the
-// box. For release builds, replace this with the DER hex of your release
-// signing certificate, obtained via:
-//
-//   keytool -exportcert -alias <alias> -keystore <keystore> | xxd -p | tr -d '\n'
-//
-// An empty string disables the signature comparison.
-// ===================================================
-// MODIFIED: Set to empty string to bypass signature verification entirely.
-// ===================================================
+// 签名检验已移除：置空字符串，verifyReleaseSignature() 据此跳过所有签名比较，
+// 任何签名（debug/release/自签）的宿主包都能通过校验。
+// 如需恢复，填入对应证书 DER hex 即可。
 static const char *kReleaseSign = "";
 
 // Stash the debug keystore cert hex here for easy re-enabling later:
