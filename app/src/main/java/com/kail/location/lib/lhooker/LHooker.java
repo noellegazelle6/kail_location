@@ -409,7 +409,7 @@ public class LHooker {
                     String name = f.getName();
                     boolean match = false;
                     if (isDeviceArm64()) match = name.contains("64");
-                    else if (isDeviceX86_64()) match = name.contains("x86_64");
+                    else if (isDeviceX86_64()) match = name.contains("x86_64") || name.contains("x64");
                     else if (isDeviceX86()) match = name.contains("x86") && !name.contains("x86_64");
                     else match = !name.contains("64") && !name.contains("x86");
                     if (match) return f.getAbsolutePath();

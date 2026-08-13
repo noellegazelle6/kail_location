@@ -134,6 +134,11 @@
     <string name="nav_app_tips">仅供学习使用，否则后果自负!</string>
     <string name="nav_menu_sponsor">赞助作者</string>
     <string name="nav_menu_github">开源仓库</string>
+    <string name="nav_menu_faq">常见问题</string>
+    <string name="faq_title">常见问题</string>
+    <string name="faq_retry">重试</string>
+    <string name="faq_empty">暂无常见问题</string>
+    <string name="faq_updated_at">更新于</string>
     <string name="nav_menu_run_mode">运行模式</string>
     <string name="run_mode_dialog_title">选择运行模式</string>
     <string name="run_mode_root">Root 模式</string>
@@ -173,10 +178,14 @@
     <string name="update_ignore">忽略一次</string>
     <string name="update_time">更新时间：</string>
     <string name="update_commit">提交信息：</string>
+    <string name="update_file_size">安装包大小：%1$s</string>
 
     <!-- Navigation -->
     <string name="nav_menu_sim_group">模拟</string>
     <string name="nav_sim_title">模拟导航</string>
+    <string name="nav_sim_plan_title">选择起点和终点</string>
+    <string name="nav_sim_plan">开始规划</string>
+    <string name="nav_sim_planned">已规划</string>
     <string name="nav_sim_start">开始模拟</string>
     <string name="nav_sim_stop">结束模拟</string>
     <string name="nav_sim_pause">暂停</string>
@@ -212,6 +221,9 @@
     <string name="route_sim_rename_cancel">取消</string>
     <string name="route_sim_need_route">请先添加并保存路线</string>
     <string name="route_sim_start_failed">启动模拟失败</string>
+    <string name="route_sim_extended">已延长路线，模拟继续</string>
+    <string name="route_sim_extend_empty">未添加新的路线点</string>
+    <string name="route_waiting">等待中</string>
 
     <!-- Route Plan -->
     <string name="route_plan_search_hint">搜索地点</string>
@@ -226,6 +238,11 @@
     <string name="route_plan_coord_error">请输入有效的纬度,经度</string>
     <string name="route_plan_ok">确定</string>
     <string name="route_plan_cancel">取消</string>
+    <string name="route_plan_wait_btn">等待</string>
+    <string name="route_plan_wait_title">途经点等待时间</string>
+    <string name="route_plan_wait_point">途经点</string>
+    <string name="route_plan_wait_seconds">秒</string>
+    <string name="route_plan_wait_hint">模拟到达该点后停留该秒数，0 表示不停留</string>
     <string name="route_plan_history">历史位置</string>
     <string name="route_plan_history_title">选择历史位置</string>
 

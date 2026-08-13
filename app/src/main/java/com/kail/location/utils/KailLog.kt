@@ -121,6 +121,17 @@ object KailLog {
     fun w(context: Context?, tag: String, message: String, isHighFrequency: Boolean = false) = log(context, tag, message, isHighFrequency, 'w')
     fun e(context: Context?, tag: String, message: String, isHighFrequency: Boolean = false) = log(context, tag, message, isHighFrequency, 'e')
 
+    // Java 便捷重载：Kotlin 默认参数对 Java 调用方不可见，这里显式补全
+    // 旧版 KailLog 的 (Context, tag, msg) 与 (Context, tag, msg, Throwable) 签名，
+    // 供注入相机等 Java 源码使用（等效于默认 isHighFrequency=false）。
+    fun v(context: Context?, tag: String, message: String) = log(context, tag, message, true, 'v')
+    fun d(context: Context?, tag: String, message: String) = log(context, tag, message, false, 'd')
+    fun i(context: Context?, tag: String, message: String) = log(context, tag, message, false, 'i')
+    fun w(context: Context?, tag: String, message: String) = log(context, tag, message, false, 'w')
+    fun e(context: Context?, tag: String, message: String) = log(context, tag, message, false, 'e')
+    fun w(context: Context?, tag: String, message: String, tr: Throwable) = w(context, tag, message, tr, false)
+    fun e(context: Context?, tag: String, message: String, tr: Throwable) = e(context, tag, message, tr, false)
+
     /** 关键诊断日志：始终输出到 Logcat，文件落盘仍遵循日志开关。 */
     fun persist(context: Context?, tag: String, message: String, level: Char = 'i') {
         val resolvedContext = context ?: resolveContext()

@@ -27,12 +27,15 @@ set_target_properties(kail_native_hook PROPERTIES
 # ============================================================
 # Ptrace injector (kail_inject)
 #
-# arm64-v8a uses root/inject64.cpp; armeabi-v7a uses root/inject.cpp.
+# arm64-v8a uses root/inject64.cpp; armeabi-v7a uses root/inject.cpp;
+# x86_64 uses root/injectx64.cpp.
 # Each ABI sees one CMake configure pass with ANDROID_ABI fixed, so we
 # select the source file accordingly.
 # ============================================================
 if(ANDROID_ABI STREQUAL "arm64-v8a")
     set(KAIL_INJECT_SRC root/inject64.cpp)
+elseif(ANDROID_ABI STREQUAL "x86_64")
+    set(KAIL_INJECT_SRC root/injectx64.cpp)
 else()
     set(KAIL_INJECT_SRC root/inject.cpp)
 endif()

@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import com.kail.location.utils.UpdateChecker
 import com.kail.location.utils.GoUtils
 import com.kail.location.utils.KailLog
+import com.kail.location.utils.MapUtils
 import com.kail.location.utils.SimulationDiagnostics
 import android.content.Context
 import android.content.Intent
@@ -71,6 +72,12 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
     private val _pendingRoutePoints = MutableStateFlow<List<LatLng>?>(null)
     val pendingRoutePoints: StateFlow<List<LatLng>?> = _pendingRoutePoints.asStateFlow()
 
+    private val _pendingRouteWaitTimes = MutableStateFlow<List<Int>?>(null)
+    /**
+     * 待保存路线各途经点的等待时长（秒，与路线点一一对应，0 表示不停留）。
+     */
+    val pendingRouteWaitTimes: StateFlow<List<Int>?> = _pendingRouteWaitTimes.asStateFlow()
+
     private val _pendingRouteName = MutableStateFlow<String?>(null)
     val pendingRouteName: StateFlow<String?> = _pendingRouteName.asStateFlow()
 
@@ -84,6 +91,8 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
     val isDownloading: StateFlow<Boolean> = _isDownloading.asStateFlow()
     private val _downloadProgress = MutableStateFlow(0)
     val downloadProgress: StateFlow<Int> = _downloadProgress.asStateFlow()
+    private val _downloadDeterminate = MutableStateFlow(true)
+    val downloadDeterminate: StateFlow<Boolean> = _downloadDeterminate.asStateFlow()
     private val _installUri = MutableStateFlow<android.net.Uri?>(null)
     val installUri: StateFlow<android.net.Uri?> = _installUri.asStateFlow()
 
@@ -98,6 +107,18 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
     private val _settings = MutableStateFlow(com.kail.location.models.SimulationSettings())
     val settings: StateFlow<com.kail.location.models.SimulationSettings> = _settings.asStateFlow()
+
+    private val _runningRoutePoints = MutableStateFlow<List<LatLng>?>(null)
+    /**
+     * 当前正在模拟的路线的全部途经点（BD09），用于运行中"+"按钮编辑/延长路线。
+     */
+    val runningRoutePoints: StateFlow<List<LatLng>?> = _runningRoutePoints.asStateFlow()
+
+    private val _runningRouteWaitTimes = MutableStateFlow<List<Int>?>(null)
+    /**
+     * 当前正在模拟的路线各途经点等待时长（秒，与 runningRoutePoints 一一对应）。
+     */
+    val runningRouteWaitTimes: StateFlow<List<Int>?> = _runningRouteWaitTimes.asStateFlow()
 
     private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
     private val _runMode = MutableStateFlow("root")
@@ -120,10 +141,10 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                 startTimeoutJob?.cancel()
                 _isStarting.value = false
             }
-            _isSimulating.value = isSim
+            _isSimulating.value = isSim || isPau
             _isPaused.value = isPau
             sharedPreferences.edit()
-                .putBoolean("route_sim_is_simulating", isSim)
+                .putBoolean("route_sim_is_simulating", isSim || isPau)
                 .putBoolean("route_sim_is_paused", isPau)
                 .apply()
         }
@@ -286,35 +307,15 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         if (_isDownloading.value) return
         _isDownloading.value = true
         _downloadProgress.value = 0
+        _downloadDeterminate.value = true
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val client = okhttp3.OkHttpClient()
-                val request = okhttp3.Request.Builder().url(info.downloadUrl).build()
-                val response = client.newCall(request).execute()
-                if (!response.isSuccessful) throw java.io.IOException("Unexpected code $response")
-                val body = response.body ?: throw java.io.IOException("Empty body")
-                val total = body.contentLength().takeIf { it > 0 } ?: -1L
-                val dir = java.io.File(context.getExternalFilesDir(null), "Updates")
-                if (!dir.exists()) dir.mkdirs()
-                val outFile = java.io.File(dir, info.filename)
-                body.byteStream().use { input ->
-                    java.io.FileOutputStream(outFile).use { output ->
-                        val buffer = ByteArray(8 * 1024)
-                        var bytesRead: Int
-                        var sum = 0L
-                        while (true) {
-                            bytesRead = input.read(buffer)
-                            if (bytesRead == -1) break
-                            output.write(buffer, 0, bytesRead)
-                            sum += bytesRead
-                            if (total > 0) {
-                                val pct = ((sum * 100) / total).toInt().coerceIn(0, 100)
-                                _downloadProgress.value = pct
-                            }
-                        }
-                        output.flush()
-                    }
-                }
+                val outFile = com.kail.location.utils.UpdateDownloader.download(
+                    context,
+                    info,
+                    onProgress = { _downloadProgress.value = it },
+                    onTotalKnown = { _downloadDeterminate.value = it }
+                )
                 _downloadProgress.value = 100
                 val uri = androidx.core.content.FileProvider.getUriForFile(
                     context,
@@ -354,7 +355,7 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
             val pending = _pendingRoutePoints.value
             if (pending != null) {
-                val newId = saveRouteSync(pending)
+                val newId = saveRouteSync(pending, _pendingRouteWaitTimes.value ?: emptyList())
                 clearPendingRoute()
                 if (newId != null) {
                     _selectedRouteId.value = newId
@@ -376,6 +377,17 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                 _toastMessage.value = app.getString(R.string.route_sim_need_route)
                 return@launch
             }
+            _runningRoutePoints.value = run {
+                val list = mutableListOf<LatLng>()
+                var k = 0
+                while (k + 1 < points.size) {
+                    list.add(LatLng(points[k + 1], points[k]))
+                    k += 2
+                }
+                list
+            }
+            val waitTimes = getSelectedRouteWaitTimes()
+            _runningRouteWaitTimes.value = waitTimes?.toList()?.map { it.toInt() }
 
             val currentRunMode = sharedPreferences.getString("setting_run_mode", "root") ?: "root"
             _runMode.value = currentRunMode
@@ -418,6 +430,9 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
             val extraSpeedFluctuation = getExtraName(currentRunMode, ServiceGoRoot.EXTRA_SPEED_FLUCTUATION, ServiceGoDeveloper.EXTRA_SPEED_FLUCTUATION)
             intent.putExtra(extraRoutePoints, points)
             intent.putExtra(extraRouteLoop, settings.value.isLoop)
+            if (waitTimes != null) {
+                intent.putExtra(ServiceConstants.EXTRA_ROUTE_WAIT_TIMES, waitTimes)
+            }
             intent.putExtra(extraJoystickEnabled, false)
             intent.putExtra(extraRouteSpeed, settings.value.speed)
             intent.putExtra(extraCoordType, "BD09")
@@ -453,10 +468,85 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         _isStarting.value = false
         _isSimulating.value = false
         _isPaused.value = false
+        _runningRoutePoints.value = null
+        _runningRouteWaitTimes.value = null
         sharedPreferences.edit()
             .putBoolean("route_sim_is_simulating", false)
             .putBoolean("route_sim_is_paused", false)
             .apply()
+    }
+
+    /**
+     * 运行中延长路线：把规划页确认后的完整途经点（BD09）与正在模拟的路线
+     * 比较，取出新增的那一段，转成 WGS84 后通过控制指令追加到正在运行的前台
+     * 服务里。模拟会自动继续走延长段，而不会停在原终点。
+     *
+     * @param fullPoints 规划页确认后的完整路线点（BD09，前若干点应与运行中路线相同）
+     * @param fullWaitTimes 完整路线各途经点等待秒数（与 fullPoints 一一对应）
+     */
+    fun extendRunningRoute(fullPoints: List<LatLng>, fullWaitTimes: List<Int>) {
+        val base = _runningRoutePoints.value ?: run {
+            KailLog.w(getApplication(), TAG, "extendRunningRoute: 没有运行中的路线")
+            return
+        }
+        if (fullPoints.size <= base.size) return
+
+        val baseWaits = _runningRouteWaitTimes.value ?: List(base.size) { 0 }
+        var append = fullPoints.drop(base.size)
+        var appendWaits = fullWaitTimes.drop(baseWaits.size)
+        while (appendWaits.size < append.size) appendWaits = appendWaits + 0
+        val baseLast = base.last()
+        // 规划页进场时可能因地图动画在终点处重复加了一个点，过滤掉与终点重合的前导点
+        while (append.isNotEmpty()) {
+            val first = append.first()
+            val dupOfBaseLast = Math.abs(first.latitude - baseLast.latitude) < 1e-6 &&
+                Math.abs(first.longitude - baseLast.longitude) < 1e-6
+            if (!dupOfBaseLast) break
+            append = append.drop(1)
+            appendWaits = appendWaits.drop(1)
+        }
+        // 去掉追加段内相邻重复点，等待时长与点位保持对齐
+        val cleaned = mutableListOf<LatLng>()
+        val cleanedWaits = mutableListOf<Int>()
+        append.forEachIndexed { idx, p ->
+            val lastP = cleaned.lastOrNull()
+            if (lastP == null || Math.abs(p.latitude - lastP.latitude) >= 1e-6 || Math.abs(p.longitude - lastP.longitude) >= 1e-6) {
+                cleaned.add(p)
+                cleanedWaits.add(appendWaits.getOrElse(idx) { 0 })
+            }
+        }
+        if (cleaned.isEmpty()) {
+            _toastMessage.value = getApplication<Application>().getString(R.string.route_sim_extend_empty)
+            return
+        }
+
+        val arr = DoubleArray(cleaned.size * 2)
+        var j = 0
+        for (p in cleaned) {
+            val wgs = MapUtils.bd2wgs(p.longitude, p.latitude)
+            arr[j++] = wgs[0]
+            arr[j++] = wgs[1]
+        }
+        val appendWaitArr = DoubleArray(cleanedWaits.size) { i -> cleanedWaits[i].toDouble() }
+
+        val app = getApplication<Application>()
+        val serviceClass = getServiceClass(_runMode.value)
+        val intent = Intent(app, serviceClass)
+        intent.putExtra(ServiceConstants.EXTRA_CONTROL_ACTION, ServiceConstants.CONTROL_APPEND_ROUTE)
+        intent.putExtra(ServiceConstants.EXTRA_ROUTE_APPEND_POINTS, arr)
+        intent.putExtra(ServiceConstants.EXTRA_ROUTE_APPEND_WAIT_TIMES, appendWaitArr)
+        app.startService(intent)
+
+        _runningRoutePoints.value = fullPoints.toList()
+        _runningRouteWaitTimes.value = List(fullPoints.size) { i -> fullWaitTimes.getOrElse(i) { 0 } }
+
+        // 若运行中的路线来自某个已保存路线，同步把延长后的点存回去，保证下次直接使用
+        val selId = _selectedRouteId.value
+        if (selId != null) {
+            updateRoute(selId, fullPoints.toList(), List(fullPoints.size) { i -> fullWaitTimes.getOrElse(i) { 0 } })
+        }
+        _toastMessage.value = app.getString(R.string.route_sim_extended)
+        KailLog.i(app, TAG, "extendRunningRoute: +${cleaned.size} points (WGS84) appended to ${serviceClass.simpleName}")
     }
 
     private fun scheduleStartTimeout() {
@@ -542,7 +632,34 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
-    fun updateRoute(id: String, points: List<LatLng>) {
+    /**
+     * 读取某条已保存路线各途经点的等待秒数（与 getRoutePointsById 一一对应）。
+     */
+    fun getRouteWaitTimesById(id: String): List<Int> {
+        return try {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val res = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(res)
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                if (obj.optLong("time", 0L).toString() == id) {
+                    val pts = obj.optJSONArray("points") ?: return emptyList()
+                    val result = mutableListOf<Int>()
+                    for (idx in 0 until pts.length()) {
+                        val p = pts.optJSONObject(idx) ?: continue
+                        result.add(p.optInt("wait", 0))
+                    }
+                    return result
+                }
+            }
+            emptyList()
+        } catch (e: Exception) {
+            KailLog.w(getApplication(), TAG, "getRouteWaitTimesById failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    fun updateRoute(id: String, points: List<LatLng>, waitTimes: List<Int> = emptyList()) {
         viewModelScope.launch {
             try {
                 val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
@@ -553,10 +670,11 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
                     if (obj.optLong("time", 0L).toString() == id) {
                         obj.put("time", System.currentTimeMillis())
                         val pts = JSONArray()
-                        points.forEach { pt ->
+                        points.forEachIndexed { idx, pt ->
                             val p = JSONObject()
                             p.put("lat", pt.latitude)
                             p.put("lng", pt.longitude)
+                            p.put("wait", waitTimes.getOrElse(idx) { 0 })
                             pts.put(p)
                         }
                         obj.put("points", pts)
@@ -823,6 +941,49 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
+    fun getLatestRouteWaitTimes(): DoubleArray? {
+        return try {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+            val res = prefs.getString("saved_routes", "[]") ?: "[]"
+            val arr = JSONArray(res)
+            if (arr.length() == 0) return null
+            val obj = arr.optJSONObject(arr.length() - 1) ?: return null
+            val points = obj.optJSONArray("points") ?: return null
+            val out = DoubleArray(points.length())
+            for (idx in 0 until points.length()) {
+                val p = points.optJSONObject(idx) ?: continue
+                out[idx] = p.optDouble("wait", 0.0)
+            }
+            out
+        } catch (e: Exception) {
+            KailLog.w(getApplication(), TAG, "getLatestRouteWaitTimes: read latest route wait times failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 与 getSelectedRoutePoints 平行的等待秒数数组（每途经点一个值）。
+     */
+    fun getSelectedRouteWaitTimes(): DoubleArray? {
+        val id = _selectedRouteId.value
+        val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
+        val res = prefs.getString("saved_routes", "[]") ?: "[]"
+        val arr = JSONArray(res)
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+            if (obj.optLong("time", 0L).toString() == id) {
+                val points = obj.optJSONArray("points") ?: return null
+                val out = DoubleArray(points.length())
+                for (idx in 0 until points.length()) {
+                    val p = points.optJSONObject(idx) ?: continue
+                    out[idx] = p.optDouble("wait", 0.0)
+                }
+                return out
+            }
+        }
+        return getLatestRouteWaitTimes()
+    }
+
     fun getSelectedRoutePoints(): DoubleArray? {
         val id = _selectedRouteId.value
         val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
@@ -845,8 +1006,9 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
         return getLatestRoutePoints()
     }
 
-    fun setPendingRoutePoints(points: List<LatLng>) {
+    fun setPendingRoutePoints(points: List<LatLng>, waitTimes: List<Int> = emptyList()) {
         _pendingRoutePoints.value = points
+        _pendingRouteWaitTimes.value = waitTimes
         _selectedRouteId.value = null
         val name = if (points.isNotEmpty()) {
             String.format("%.4f,%.4f", points.first().latitude, points.first().longitude)
@@ -856,10 +1018,11 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
 
     fun clearPendingRoute() {
         _pendingRoutePoints.value = null
+        _pendingRouteWaitTimes.value = null
         _pendingRouteName.value = null
     }
 
-    private fun saveRouteSync(points: List<LatLng>): String? {
+    private fun saveRouteSync(points: List<LatLng>, waitTimes: List<Int> = emptyList()): String? {
         try {
             val prefs = PreferenceManager.getDefaultSharedPreferences(getApplication())
             val existing = prefs.getString("saved_routes", "[]") ?: "[]"
@@ -870,10 +1033,11 @@ class RouteSimulationViewModel(application: Application) : AndroidViewModel(appl
             obj.put("isFavorite", false)
             obj.put("favoriteOrder", 0)
             val pts = JSONArray()
-            points.forEach { pt ->
+            points.forEachIndexed { idx, pt ->
                 val p = JSONObject()
                 p.put("lat", pt.latitude)
                 p.put("lng", pt.longitude)
+                p.put("wait", waitTimes.getOrElse(idx) { 0 })
                 pts.put(p)
             }
             obj.put("points", pts)

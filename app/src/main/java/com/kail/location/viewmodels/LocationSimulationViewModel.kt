@@ -96,6 +96,8 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
 
     private val _downloadProgress = MutableStateFlow(0)
     val downloadProgress: StateFlow<Int> = _downloadProgress.asStateFlow()
+    private val _downloadDeterminate = MutableStateFlow(true)
+    val downloadDeterminate: StateFlow<Boolean> = _downloadDeterminate.asStateFlow()
 
     private val _installUri = MutableStateFlow<Uri?>(null)
     val installUri: StateFlow<Uri?> = _installUri.asStateFlow()
@@ -353,35 +355,15 @@ class LocationSimulationViewModel(application: Application) : AndroidViewModel(a
         if (_isDownloading.value) return
         _isDownloading.value = true
         _downloadProgress.value = 0
+        _downloadDeterminate.value = true
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val client = okhttp3.OkHttpClient()
-                val request = okhttp3.Request.Builder().url(info.downloadUrl).build()
-                val response = client.newCall(request).execute()
-                if (!response.isSuccessful) throw java.io.IOException("Unexpected code $response")
-                val body = response.body ?: throw java.io.IOException("Empty body")
-                val total = body.contentLength().takeIf { it > 0 } ?: -1L
-                val dir = java.io.File(context.getExternalFilesDir(null), "Updates")
-                if (!dir.exists()) dir.mkdirs()
-                val outFile = java.io.File(dir, info.filename)
-                body.byteStream().use { input ->
-                    java.io.FileOutputStream(outFile).use { output ->
-                        val buffer = ByteArray(8 * 1024)
-                        var bytesRead: Int
-                        var sum = 0L
-                        while (true) {
-                            bytesRead = input.read(buffer)
-                            if (bytesRead == -1) break
-                            output.write(buffer, 0, bytesRead)
-                            sum += bytesRead
-                            if (total > 0) {
-                                val pct = ((sum * 100) / total).toInt().coerceIn(0, 100)
-                                _downloadProgress.value = pct
-                            }
-                        }
-                        output.flush()
-                    }
-                }
+                val outFile = com.kail.location.utils.UpdateDownloader.download(
+                    context,
+                    info,
+                    onProgress = { _downloadProgress.value = it },
+                    onTotalKnown = { _downloadDeterminate.value = it }
+                )
                 _downloadProgress.value = 100
                 val uri = FileProvider.getUriForFile(
                     context,

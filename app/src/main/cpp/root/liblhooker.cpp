@@ -138,7 +138,41 @@ static void writeInitLogToFile() {
 // ---------------------------------------------------------------------------
 // Trampoline templates and entry-offset patching.
 // ---------------------------------------------------------------------------
-#if defined(__LP64__)
+#if defined(__x86_64__)
+
+// 19-byte x86_64 trampoline; ArtMethod* literal at +2 (movabs imm), the entry
+// offset is folded into the disp32 of `mov rax, [rdi + disp32]`. At a method
+// entry point rdi already holds the ArtMethod* (SysV first arg); we overwrite
+// it with the literal target method (mirroring the arm64 ldr x0,#16) so the
+// jumped-to code always runs as that method.
+//   [0]  48 BF <imm64>            movabs rdi, <ArtMethod*>
+//   [10] 48 8B 87 <disp32>        mov    rax, [rdi + entryOffset]
+//   [17] FF E0                    jmp    rax
+static const uint8_t kTrampolineBase[19] = {
+    0x48, 0xBF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x48, 0x8B, 0x87, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0xE0,
+};
+static uint8_t gTrampoline[19];
+static const size_t kNoBackupSize = 32;
+
+static void setupTrampoline(int entryOffset) {
+  // Restore the pristine template first so this is idempotent (the runtime
+  // ArtMethod probe may refine the entry offset and call us again).
+  memcpy(gTrampoline, kTrampolineBase, sizeof(gTrampoline));
+  gTrampoline[13] = (uint8_t)(entryOffset & 0xff);
+  gTrampoline[14] = (uint8_t)((entryOffset >> 8) & 0xff);
+  gTrampoline[15] = (uint8_t)((entryOffset >> 16) & 0xff);
+  gTrampoline[16] = (uint8_t)((entryOffset >> 24) & 0xff);
+}
+
+static void *emitTrampoline(uint8_t *slot, uintptr_t method) {
+  memcpy(slot, gTrampoline, sizeof(gTrampoline));
+  *(uint64_t *)(slot + 2) = (uint64_t)method;
+  return slot;
+}
+
+#elif defined(__LP64__)
 
 // 24-byte block; instruction stream begins at +4, ArtMethod* literal at +16.
 //   [0]  padding

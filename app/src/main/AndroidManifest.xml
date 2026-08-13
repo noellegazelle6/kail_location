@@ -195,6 +195,13 @@
             android:exported="false" />
 
         <activity
+            android:name="com.kail.location.views.faq.FaqActivity"
+            android:label="@string/faq_title"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name="com.kail.location.views.sponsor.SponsorActivity"
             android:label="@string/sponsor_title"
             android:exported="false"

@@ -67,6 +67,7 @@ fun RouteSimulationScreen(
     onXposedSettingsSelected: () -> Unit = {},
     onNavigate: (Int) -> Unit,
     onAddRouteClick: () -> Unit,
+    onExtendRouteClick: () -> Unit = {},
     onEditRoute: (String) -> Unit = {},
     appVersion: String,
     onStartSimulation: (SimulationSettings) -> Unit,
@@ -101,6 +102,7 @@ fun RouteSimulationScreen(
 
     val isDownloading by viewModel.isDownloading.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val downloadDeterminate by viewModel.downloadDeterminate.collectAsState()
     val installUri by viewModel.installUri.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
     
@@ -116,6 +118,7 @@ fun RouteSimulationScreen(
             info = updateInfo!!,
             downloading = isDownloading,
             progress = downloadProgress,
+            progressIndeterminate = !downloadDeterminate,
             onDismiss = { viewModel.dismissUpdateDialog() },
             onStartDownload = { viewModel.startUpdateDownload(context) }
         )
@@ -203,7 +206,7 @@ fun RouteSimulationScreen(
                         
                         // FAB overlapping the card
                         FloatingActionButton(
-                            onClick = onAddRouteClick,
+                            onClick = { if (isSimulating) onExtendRouteClick() else onAddRouteClick() },
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = Color.White,
                             shape = CircleShape,

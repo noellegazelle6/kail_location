@@ -171,6 +171,11 @@
     <string name="nav_app_tips">For learning purposes only. Use at your own risk!</string>
     <string name="nav_menu_sponsor">Sponsor</string>
     <string name="nav_menu_github">Source Code</string>
+    <string name="nav_menu_faq">FAQ</string>
+    <string name="faq_title">FAQ</string>
+    <string name="faq_retry">Retry</string>
+    <string name="faq_empty">No FAQ available</string>
+    <string name="faq_updated_at">Updated at</string>
     <string name="nav_menu_run_mode">Run Mode</string>
     <string name="run_mode_dialog_title">Select Run Mode</string>
     <string name="run_mode_root">Root Mode</string>
@@ -205,6 +210,7 @@
     <string name="update_ignore">Ignore</string>
     <string name="update_time">Updated: </string>
     <string name="update_commit">Release Notes: </string>
+    <string name="update_file_size">File size: %1$s</string>
 
     <!-- Navigation Simulation -->
     <string name="nav_sim_title">Navigation Simulation</string>
@@ -813,4 +819,19 @@
     <string name="setting_floating_window_size">Floating Window Size</string>
     <string name="setting_floating_window_width">Width</string>
     <string name="setting_floating_window_height">Height</string>
+
+    <!-- Route simulation: extend / waypoint wait -->
+    <string name="route_sim_extended">Route extended, simulation continues</string>
+    <string name="route_sim_extend_empty">No new route points added</string>
+    <string name="route_waiting">Waiting</string>
+    <string name="route_plan_wait_btn">Wait</string>
+    <string name="route_plan_wait_title">Waypoint wait time</string>
+    <string name="route_plan_wait_point">Waypoint</string>
+    <string name="route_plan_wait_seconds">s</string>
+    <string name="route_plan_wait_hint">Holds at this point for the given seconds; 0 = no stop</string>
+
+    <!-- Navigation simulation -->
+    <string name="nav_sim_plan">Plan route</string>
+    <string name="nav_sim_planned">Planned</string>
+    <string name="nav_sim_plan_title">Set start and end point</string>
 </resources>

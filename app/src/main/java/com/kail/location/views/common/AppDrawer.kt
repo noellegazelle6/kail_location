@@ -476,6 +476,14 @@ fun AppDrawer(
                     onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_source_code) } }
                 )
             }
+            item {
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.nav_menu_faq)) },
+                    icon = { Icon(painterResource(R.drawable.ic_menu_feedback), contentDescription = null) },
+                    selected = false,
+                    onClick = { scope.launch { closeDrawerSmooth(); onNavigate(R.id.nav_faq) } }
+                )
+            }
         }
     }
 }

@@ -3,7 +3,7 @@
 > 调试者的空间坐标实验舱：路线模拟、位置模拟、导航模拟、步频模拟、虚拟定位与 NFC 模拟。
 
 <p align="center">
-  <a href="https://github.com/noellegazelle6/kail_location/releases">App 下载</a>
+  <a href="https://www.kaillocation.xyz">App 下载</a>
   ·
   <a href="README_EN.md">English README</a>
 </p>
@@ -32,7 +32,7 @@
 
 ## 下载
 
-[app下载](https://github.com/noellegazelle6/kail_location/releases)
+[app下载](https://www.kaillocation.xyz)
 
 ---
 

@@ -567,6 +567,16 @@ object RootDeployer {
                 rootCmd("chmod 777 ${mirror.absolutePath}")
                 rootCmd("chcon u:object_r:system_file:s0 ${mirror.absolutePath} 2>/dev/null || true")
             }
+            // x86_64: LHooker expects liblhookerx64.so for the entry-point hook
+            // engine; mirror the freshly deployed liblhooker.so under that name
+            // so the injected bootstrap finds it on x86_64 emulators/devices.
+            if (ok && abi == "x86_64" && name == "liblhooker.so") {
+                val x64Versioned = versionedName("liblhookerx64.so", v)
+                val mirror = File(FAKELOC_DIR, x64Versioned)
+                rootCmd("cp -f ${versioned.absolutePath} ${mirror.absolutePath}", ROOT_COPY_TIMEOUT_MS)
+                rootCmd("chmod 777 ${mirror.absolutePath}")
+                rootCmd("chcon u:object_r:system_file:s0 ${mirror.absolutePath} 2>/dev/null || true")
+            }
         }
         return initLoader
     }
@@ -693,9 +703,11 @@ object RootDeployer {
     // Internal helpers
     // ------------------------------------------------------------------
 
+    // 注入目标是 system_server，必须按设备的原生主 ABI 部署 so/注入器，
+    // 而不是硬性优先 arm64 —— 否则在 x86_64 模拟器（SUPPORTED_ABIS 同时含
+    // x86_64 与 arm64-v8a）上会错误地部署 arm64 库，导致 dlopen/寄存器不匹配。
     private fun preferredAbi(): String =
-        android.os.Build.SUPPORTED_ABIS.firstOrNull { it == "arm64-v8a" }
-            ?: android.os.Build.SUPPORTED_ABIS.firstOrNull()
+        android.os.Build.SUPPORTED_ABIS.firstOrNull()
             ?: "arm64-v8a"
 
     private fun isSystemServerInjectionCurrent(context: Context): Boolean {
@@ -823,29 +835,47 @@ object RootDeployer {
         }
     }
 
+    /**
+     * 把目标 so 部署到设备。优先从 APK 内按目标 ABI（preferredAbi()，即
+     * system_server 的原生 ABI）的 zip 条目解压；只有解压失败时才回退到 App
+     * 进程自身的 nativeLibraryDir。
+     *
+     * 不能反过来优先 nativeLibraryDir：在带 ARM 翻译的 x86_64 模拟器上，
+     * App 进程以 arm64 运行（nativeLibraryDir=.../lib/arm64），但目标
+     * system_server 是 x86_64，若把 arm64 注入器/库注入进去会因寄存器与
+     * ELF 架构不匹配而失败。
+     */
     private fun copyAndChmod(context: Context, src: File, zipEntry: String, dst: File): Boolean {
         return runCatching {
-            if (src.exists() && src.length() > 0) {
+            val ok = if (extractFromApk(context, zipEntry, dst)) {
+                true
+            } else if (src.exists() && src.length() > 0) {
                 rootCmd("cp -f ${src.absolutePath} ${dst.absolutePath}", ROOT_COPY_TIMEOUT_MS)
+                true
             } else {
-                extractFromApk(context, zipEntry, dst)
+                false
             }
-            rootCmd("chmod 777 ${dst.absolutePath}")
-            rootCmd("chcon u:object_r:system_file:s0 ${dst.absolutePath} 2>/dev/null || true")
-            dst.exists() && dst.length() > 0
+            if (ok) {
+                rootCmd("chmod 777 ${dst.absolutePath}")
+                rootCmd("chcon u:object_r:system_file:s0 ${dst.absolutePath} 2>/dev/null || true")
+            }
+            ok && dst.exists() && dst.length() > 0
         }.getOrElse {
             KailLog.e(null, TAG, "copyAndChmod ${dst.name}: ${it.message}")
             false
         }
     }
 
-    private fun extractFromApk(context: Context, zipEntry: String, dst: File) {
-        val apkPath = context.applicationInfo.sourceDir ?: return
-        ZipFile(apkPath).use { zip ->
-            val entry = zip.getEntry(zipEntry) ?: return
-            zip.getInputStream(entry).use { input ->
-                dst.outputStream().use { out -> input.copyTo(out) }
+    private fun extractFromApk(context: Context, zipEntry: String, dst: File): Boolean {
+        return runCatching {
+            val apkPath = context.applicationInfo.sourceDir ?: return@runCatching false
+            ZipFile(apkPath).use { zip ->
+                val entry = zip.getEntry(zipEntry) ?: return@runCatching false
+                zip.getInputStream(entry).use { input ->
+                    dst.outputStream().use { out -> input.copyTo(out) }
+                }
             }
-        }
+            dst.exists() && dst.length() > 0
+        }.getOrDefault(false)
     }
 }

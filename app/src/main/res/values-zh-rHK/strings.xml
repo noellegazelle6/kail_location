@@ -149,6 +149,11 @@
     <string name="nav_app_tips">僅供學習使用，否則後果自負！</string>
     <string name="nav_menu_sponsor">贊助作者</string>
     <string name="nav_menu_github">開源倉庫</string>
+    <string name="nav_menu_faq">常見問題</string>
+    <string name="faq_title">常見問題</string>
+    <string name="faq_retry">重試</string>
+    <string name="faq_empty">暫無常見問題</string>
+    <string name="faq_updated_at">更新於</string>
     <string name="nav_menu_run_mode">運行模式</string>
     <string name="run_mode_dialog_title">選擇運行模式</string>
     <string name="run_mode_root">Root 模式</string>
@@ -183,6 +188,7 @@
     <string name="update_ignore">忽略一次</string>
     <string name="update_time">更新時間：</string>
     <string name="update_commit">變更資訊：</string>
+    <string name="update_file_size">安裝包大小：%1$s</string>
 
     <string name="nav_sim_title">導航模擬</string>
     <string name="nav_sim_start">開始導航</string>
@@ -783,4 +789,19 @@
     <string name="setting_floating_window_size">浮窗大小</string>
     <string name="setting_floating_window_width">寬度</string>
     <string name="setting_floating_window_height">高度</string>
+
+    <!-- Route simulation: extend / waypoint wait -->
+    <string name="route_sim_extended">已延長路線，模擬繼續</string>
+    <string name="route_sim_extend_empty">未添加新的路線點</string>
+    <string name="route_waiting">等待中</string>
+    <string name="route_plan_wait_btn">等待</string>
+    <string name="route_plan_wait_title">途經點等待時間</string>
+    <string name="route_plan_wait_point">途經點</string>
+    <string name="route_plan_wait_seconds">秒</string>
+    <string name="route_plan_wait_hint">模擬到達該點後停留該秒數，0 表示不停留</string>
+
+    <!-- Navigation simulation -->
+    <string name="nav_sim_plan">開始規劃</string>
+    <string name="nav_sim_planned">已規劃</string>
+    <string name="nav_sim_plan_title">選擇起點和終點</string>
 </resources>

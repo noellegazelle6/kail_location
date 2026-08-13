@@ -3,7 +3,7 @@
 > A spatial control deck for developers and professionals — route simulation, location simulation, navigation simulation, cadence simulation, virtual location, and NFC simulation.
 
 <p align="center">
-  <a href="https://github.com/noellegazelle6/kail_location/releases">Download app</a>
+  <a href="https://www.kaillocation.xyz/">Download app</a>
   ·
   <a href="README.md">中文说明</a>
 </p>
@@ -32,7 +32,7 @@
 
 ## Download
 
-[app](https://github.com/noellegazelle6/kail_location/releases)
+[app](https://www.kaillocation.xyz)
 
 ---
 

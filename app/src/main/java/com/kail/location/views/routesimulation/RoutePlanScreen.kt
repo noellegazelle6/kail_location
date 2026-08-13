@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
@@ -54,6 +55,13 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Typeface
+import kotlin.math.ceil
 
 /**
  * 标点阶段枚举
@@ -90,7 +98,10 @@ fun RoutePlanScreen(
     onDeveloperModeSelected: () -> Unit = {},
     onXposedSettingsSelected: () -> Unit = {},
     editingRouteId: String? = null,
-    initialWaypoints: List<LatLng> = emptyList()
+    initialWaypoints: List<LatLng> = emptyList(),
+    initialWaitTimes: List<Int> = emptyList(),
+    extendBaseCount: Int = 0,
+    onExtendConfirm: ((List<LatLng>, List<Int>) -> Unit)? = null
 ) {
     var startPoint by remember { mutableStateOf(initialWaypoints.firstOrNull()?.let { "${it.latitude},${it.longitude}" } ?: "") }
     var endPoint by remember { mutableStateOf(initialWaypoints.lastOrNull()?.let { "${it.latitude},${it.longitude}" } ?: "") }
@@ -99,6 +110,12 @@ fun RoutePlanScreen(
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
     var isSatellite by remember { mutableStateOf(false) }
     val waypoints = remember { mutableStateListOf<LatLng>().apply { addAll(initialWaypoints) } }
+    val waitTimes = remember { mutableStateListOf<Int>().apply {
+        // 与途经点数量对齐：旧路线/运行中路线可能没有等待数据，缺失补 0
+        val count = maxOf(initialWaypoints.size, initialWaitTimes.size)
+        for (i in 0 until count) add(initialWaitTimes.getOrElse(i) { 0 })
+    } }
+    var showWaitDialog by remember { mutableStateOf(false) }
     var polylineOverlay by remember { mutableStateOf<Overlay?>(null) }
     var dashedOverlay by remember { mutableStateOf<Overlay?>(null) }
     var markingPhase by remember { mutableStateOf(if (initialWaypoints.isNotEmpty()) MarkingPhase.Active else MarkingPhase.Idle) }
@@ -110,6 +127,7 @@ fun RoutePlanScreen(
     var currentMarkerOverlay by remember { mutableStateOf<Overlay?>(null) }
     var startMarkerOverlay by remember { mutableStateOf<Overlay?>(null) }
     var endMarkerOverlay by remember { mutableStateOf<Overlay?>(null) }
+    val waitBadgeOverlays = remember { mutableListOf<Overlay>() }
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -139,6 +157,7 @@ fun RoutePlanScreen(
                 selectingStart = false
             }
             waypoints.add(point)
+            waitTimes.add(0)
             endPoint = "${lat},${lng}"
             currentAnchor = point
             if (markingPhase == MarkingPhase.Idle) {
@@ -211,6 +230,7 @@ fun RoutePlanScreen(
                         
                         if (waypoints.isEmpty() && anchor != target) {
                              waypoints.add(anchor)
+                             waitTimes.add(0)
                              if (selectingStart) {
                                  startPoint = "${anchor.latitude},${anchor.longitude}"
                                  selectingStart = false
@@ -218,6 +238,7 @@ fun RoutePlanScreen(
                         }
                         
                         waypoints.add(target)
+                        waitTimes.add(0)
                         polylineOverlay?.remove()
                         if (waypoints.size >= 2) {
                             val polyOpt = PolylineOptions().width(8).color(AndroidColor.BLUE).points(waypoints)
@@ -268,7 +289,7 @@ fun RoutePlanScreen(
         }
     }
 
-    LaunchedEffect(mapView, waypoints.size, waypoints.toList()) {
+    LaunchedEffect(mapView, waypoints.size, waypoints.toList(), waitTimes.toList()) {
         val map = mapView?.map
         if (map != null) {
             startMarkerOverlay?.remove()
@@ -277,6 +298,8 @@ fun RoutePlanScreen(
             endMarkerOverlay = null
             polylineOverlay?.remove()
             polylineOverlay = null
+            waitBadgeOverlays.forEach { runCatching { it.remove() } }
+            waitBadgeOverlays.clear()
 
             if (waypoints.isNotEmpty()) {
                 val start = waypoints.first()
@@ -298,6 +321,23 @@ fun RoutePlanScreen(
                 if (waypoints.size >= 2) {
                     val polyOpt = PolylineOptions().width(8).color(AndroidColor.BLUE).points(waypoints.toList())
                     polylineOverlay = map.addOverlay(polyOpt)
+                }
+            }
+
+            // 在设置了等待时间的途经点上方标出等待秒数
+            waitTimes.forEachIndexed { idx, seconds ->
+                if (seconds > 0 && idx < waypoints.size) {
+                    val badge = buildWaitBadgeBitmap(context, seconds)
+                    waitBadgeOverlays.add(
+                        map.addOverlay(
+                            MarkerOptions()
+                                .position(waypoints[idx])
+                                .icon(BitmapDescriptorFactory.fromBitmap(badge))
+                                .anchor(0.5f, 1f)
+                                .zIndex(7)
+                                .draggable(false)
+                        )
+                    )
                 }
             }
         }
@@ -345,6 +385,24 @@ fun RoutePlanScreen(
                 addWaypointFromRecord(record)
             }
         )
+    }
+
+    if (showWaitDialog) {
+        val lastIdx = waypoints.lastIndex
+        if (lastIdx >= 0) {
+            WaypointWaitDialog(
+                waypointIndex = lastIdx + 1,
+                currentWaitSeconds = waitTimes.getOrElse(lastIdx) { 0 },
+                onDismiss = { showWaitDialog = false },
+                onConfirm = { seconds ->
+                    if (waitTimes.size > lastIdx) waitTimes[lastIdx] = seconds
+                    showWaitDialog = false
+                    KailLog.i(context, "RoutePlanScreen", "Waypoint ${lastIdx + 1} wait time set to ${seconds}s")
+                }
+            )
+        } else {
+            showWaitDialog = false
+        }
     }
 
     ModalNavigationDrawer(
@@ -531,6 +589,7 @@ fun RoutePlanScreen(
                             }
                             if (waypoints.isNotEmpty()) {
                                 waypoints.removeAt(waypoints.lastIndex)
+                                if (waitTimes.isNotEmpty()) waitTimes.removeAt(waitTimes.lastIndex)
                                 polylineOverlay?.remove()
                                 polylineOverlay = null
                                 val map = mapView?.map
@@ -574,6 +633,7 @@ fun RoutePlanScreen(
                                         currentAnchor = center
                                         if (center != null && waypoints.isEmpty()) {
                                             waypoints.add(center)
+                                            waitTimes.add(0)
                                             startPoint = "${center.latitude},${center.longitude}"
                                             selectingStart = false
                                         }
@@ -602,17 +662,39 @@ fun RoutePlanScreen(
                         )
                     }
 
+                    // Wait time per waypoint
+                    FloatingActionButton(
+                        onClick = { showWaitDialog = true },
+                        containerColor = if (showWaitDialog) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                        shape = CircleShape,
+                        modifier = Modifier.alpha(if (waypoints.isNotEmpty()) 1f else 0f)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.route_plan_wait_btn),
+                            color = if (showWaitDialog) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.secondary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
                     // Confirm and Save
                     FloatingActionButton(
                         onClick = {
                             try {
                                 if (waypoints.size >= 2) {
-                                    if (editingRouteId != null) {
-                                        viewModel.updateRoute(editingRouteId, waypoints.toList())
-                                        KailLog.i(context, "RoutePlanScreen", "Updated route ${editingRouteId} with ${waypoints.size} points")
-                                    } else {
-                                        viewModel.setPendingRoutePoints(waypoints.toList())
-                                        KailLog.i(context, "RoutePlanScreen", "Set pending route with ${waypoints.size} points")
+                                    when {
+                                        extendBaseCount > 0 && onExtendConfirm != null -> {
+                                            onExtendConfirm(waypoints.toList(), waitTimes.toList())
+                                            KailLog.i(context, "RoutePlanScreen", "Extended running route with ${waypoints.size} points (base=$extendBaseCount)")
+                                        }
+                                        editingRouteId != null -> {
+                                            viewModel.updateRoute(editingRouteId, waypoints.toList(), waitTimes.toList())
+                                            KailLog.i(context, "RoutePlanScreen", "Updated route ${editingRouteId} with ${waypoints.size} points")
+                                        }
+                                        else -> {
+                                            viewModel.setPendingRoutePoints(waypoints.toList(), waitTimes.toList())
+                                            KailLog.i(context, "RoutePlanScreen", "Set pending route with ${waypoints.size} points")
+                                        }
                                     }
                                 }
                                 onConfirmClick()
@@ -886,4 +968,109 @@ fun HistoryRecordPickerDialog(
             }
         }
     )
+}
+
+/**
+ * 途经点等待时间设置对话框
+ * 只编辑最新添加的那个途经点的等待秒数；撤回途经点后会自动显示上一个最新的。
+ *
+ * @param waypointIndex 最新途经点的显示序号（从 1 开始）
+ * @param currentWaitSeconds 该途经点当前的等待秒数
+ * @param onDismiss 关闭回调
+ * @param onConfirm 确认回调，参数为该途经点的等待秒数
+ */
+@Composable
+fun WaypointWaitDialog(
+    waypointIndex: Int,
+    currentWaitSeconds: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    var secondsStr by remember { mutableStateOf(currentWaitSeconds.toString()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.route_plan_wait_title)) },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "${stringResource(R.string.route_plan_wait_point)} ${waypointIndex}",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = secondsStr,
+                        onValueChange = { input ->
+                            secondsStr = input.filter { it.isDigit() }.take(5)
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.route_plan_wait_seconds),
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.route_plan_wait_hint),
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(secondsStr.toIntOrNull() ?: 0) }) {
+                Text(stringResource(R.string.route_plan_ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.route_plan_cancel))
+            }
+        }
+    )
+}
+
+/**
+ * 生成一个带倒三角指示符的等待时长徽标位图，用于标记在设置了等待时间的途经点上方。
+ * 例如等待 10 秒 → 蓝色小气泡上写 "10s"，底部小三角指向该途经点。
+ */
+fun buildWaitBadgeBitmap(context: Context, seconds: Int): Bitmap {
+    val density = context.resources.displayMetrics.density
+    val text = "${seconds}s"
+    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE
+        textSize = 12f * density
+        typeface = Typeface.DEFAULT_BOLD
+    }
+    val padH = 7f * density
+    val padV = 3f * density
+    val pointerH = 5f * density
+    val badgeW = textPaint.measureText(text) + padH * 2f
+    val badgeH = textPaint.textSize + padV * 2f
+    val totalH = badgeH + pointerH + 2f * density
+    val bitmap = Bitmap.createBitmap(
+        ceil(badgeW).toInt(),
+        ceil(totalH).toInt(),
+        Bitmap.Config.ARGB_8888
+    )
+    val canvas = Canvas(bitmap)
+    val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.rgb(25, 118, 210) }
+    val radius = 6f * density
+    canvas.drawRoundRect(RectF(0f, 0f, badgeW, badgeH), radius, radius, fill)
+    val pointer = Path().apply {
+        moveTo(badgeW / 2f - pointerH, badgeH)
+        lineTo(badgeW / 2f + pointerH, badgeH)
+        lineTo(badgeW / 2f, badgeH + pointerH)
+        close()
+    }
+    canvas.drawPath(pointer, fill)
+    val baseline = badgeH / 2f - (textPaint.ascent() + textPaint.descent()) / 2f
+    canvas.drawText(text, badgeW / 2f, baseline, textPaint)
+    return bitmap
 }
