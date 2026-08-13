@@ -22,21 +22,6 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      # -------- 修正 KSP 版本（如果未在仓库中直接修改） ----------
-      - name: Fix KSP version
-        run: |
-          # 将原版本（可能是 2.3.0 或 2.0.21...）替换为兼容 Kotlin 2.2.0 的 KSP 版本
-          sed -i 's/version "2.3.0"/version "2.2.0-2.0.2"/g' build.gradle.kts
-          sed -i 's/version "2.0.21-1.0.27"/version "2.2.0-2.0.2"/g' build.gradle.kts
-          sed -i 's/version "2.2.0-1.0.31"/version "2.2.0-2.0.2"/g' build.gradle.kts
-
-      # -------- 确保 settings.gradle.kts 包含 google() 仓库 ----------
-      - name: Ensure Google repository in settings
-        run: |
-          if ! grep -q "google()" settings.gradle.kts; then
-            sed -i '/pluginManagement {/a \    repositories {\n        google()\n        mavenCentral()\n        gradlePluginPortal()\n    }' settings.gradle.kts
-          fi
-
       # -------- 接受所有 Android SDK 许可证（包括 NDK 29） ----------
       - name: Accept Android SDK licenses
         run: |
