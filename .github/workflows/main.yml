@@ -1,0 +1,54 @@
+name: Build Release APK
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: 设置 JDK 21
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+
+    - name: 设置 Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    # ---- 新增：解码并保存密钥文件 ----
+    - name: 创建密钥文件
+      run: |
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ${{ github.workspace }}/keystore.jks
+      # 注意：如果 base64 命令不可用，可改用 `base64 -d` 或 `openssl base64 -d`
+
+    # ---- 设置环境变量，供 build.gradle 使用 ----
+    - name: 设置签名环境变量
+      run: |
+        echo "KEYSTORE_PATH=${{ github.workspace }}/keystore.jks" >> $GITHUB_ENV
+        echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+        echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+        echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+
+    - name: 赋予 gradlew 执行权限
+      run: chmod +x gradlew
+
+    # ---- 编译 Release APK ----
+    - name: 编译 Release APK
+      run: ./gradlew assembleRelease
+
+    - name: 上传 APK 产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release
+        path: app/build/outputs/apk/release/*.apk
